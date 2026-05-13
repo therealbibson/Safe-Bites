@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { CartProvider } from './context/CartContext';
 import { AuthProvider } from './context/AuthContext';
@@ -11,6 +10,7 @@ import Checkout from './pages/Checkout';
 import UserPage from './pages/UserPage';
 import FoodDetail from './pages/FoodDetail';
 import Orders from './pages/Orders';
+import Admin from './pages/Admin';
 
 function App() {
   return (
@@ -27,6 +27,7 @@ function App() {
             <Route path="/user" element={<UserPage />} />
             <Route path="/food/:id" element={<FoodDetail />} />
             <Route path="/orders" element={<Orders />} />
+            <Route path="/admin" element={<Admin />} />
           </Routes>
         </BrowserRouter>
       </CartProvider>

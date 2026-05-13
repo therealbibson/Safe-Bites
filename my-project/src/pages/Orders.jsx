@@ -63,7 +63,7 @@ const Orders = () => {
                   {order.items.map((item, i) => (
                     <div key={i} className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
-                        <img src={item.image} className="w-12 h-12 rounded-xl object-cover" />
+                        <img src={item.imageUrl} className="w-12 h-12 rounded-xl object-cover" />
                         <span className="font-bold text-stone-700">{item.name}</span>
                       </div>
                       <span className="text-stone-400 font-medium">${item.price.toFixed(2)}</span>

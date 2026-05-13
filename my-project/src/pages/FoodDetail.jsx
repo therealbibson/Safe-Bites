@@ -1,26 +1,60 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ChevronLeft, Star, Clock, Flame, ShieldCheck, Plus, Minus } from 'lucide-react';
+import { ChevronLeft, Star, Clock, Flame, ShieldCheck, Plus, Minus, Loader2 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import Navbar from '../components/Navbar';
-
-const FOOD_ITEMS = [
-  { id: 1, name: 'Double Cheese Burger', price: 12.99, image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&auto=format&fit=crop&q=80', category: 'Burgers', calories: 850, time: '15-20 min', rating: 4.8 },
-  { id: 2, name: 'Pepperoni Pizza', price: 15.50, image: 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=800&auto=format&fit=crop&q=80', category: 'Pizza', calories: 1200, time: '20-25 min', rating: 4.9 },
-  { id: 3, name: 'Spicy Ramen', price: 14.20, image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=800&auto=format&fit=crop&q=80', category: 'Asian', calories: 650, time: '10-15 min', rating: 4.7 },
-  { id: 4, name: 'Garden Salad', price: 9.99, image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&auto=format&fit=crop&q=80', category: 'Salad', calories: 320, time: '5-10 min', rating: 4.5 },
-  { id: 5, name: 'Chocolate Lava Cake', price: 7.50, image: 'https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=800&auto=format&fit=crop&q=80', category: 'Dessert', calories: 450, time: '10-12 min', rating: 4.9 },
-  { id: 6, name: 'Mango Smoothie', price: 5.99, image: 'https://images.unsplash.com/photo-1523049673857-eb18f1d7b578?w=800&auto=format&fit=crop&q=80', category: 'Drinks', calories: 280, time: '5 min', rating: 4.6 },
-];
 
 const FoodDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { addToCart } = useCart();
-  const item = FOOD_ITEMS.find(f => f.id === parseInt(id));
+  const { addToCart, isAdding } = useCart();
+  const [item, setItem] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [quantity, setQuantity] = useState(1);
 
-  if (!item) return <div className="p-20 text-center font-bold">Item not found</div>;
+  const isItemAdding = item ? isAdding(item.id) : false;
+
+  useEffect(() => {
+    const fetchFoodDetail = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/foods/${id}`);
+        if (!response.ok) throw new Error('Food item not found');
+        const data = await response.json();
+        
+        // Map backend fields to frontend expectations
+        const formattedItem = {
+          ...data,
+          id: data._id,
+          image: data.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&auto=format&fit=crop&q=80',
+          category: data.category || 'Food',
+          calories: data.calories || 0,
+          time: data.time || '15-20 min',
+          rating: data.rating || 4.5
+        };
+        setItem(formattedItem);
+      } catch (error) {
+        console.error('Error fetching food detail:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFoodDetail();
+  }, [id]);
+
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <p className="text-2xl text-stone-400 font-bold">Loading food details...</p>
+    </div>
+  );
+
+  if (!item) return (
+    <div className="min-h-screen flex flex-col items-center justify-center space-y-4">
+      <p className="text-2xl text-stone-400 font-bold">Item not found</p>
+      <button onClick={() => navigate('/')} className="text-orange-500 font-bold underline">Go back home</button>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-white pb-32">
@@ -85,7 +119,7 @@ const FoodDetail = () => {
           <div className="mb-10">
             <h3 className="text-xl font-black text-stone-800 mb-4">Description</h3>
             <p className="text-stone-500 leading-relaxed text-lg">
-              Our signature {item.name} is prepared with the utmost care and precision. We use only organic, locally-sourced ingredients to ensure every bite is packed with flavor and nutrition. Perfectly seasoned and cooked to order, it's a guaranteed favorite for any occasion.
+              {item.description || `Our signature ${item.name} is prepared with the utmost care and precision. We use only organic, locally-sourced ingredients to ensure every bite is packed with flavor and nutrition. Perfectly seasoned and cooked to order, it's a guaranteed favorite for any occasion.`}
             </p>
           </div>
 
@@ -105,24 +139,33 @@ const FoodDetail = () => {
       <div className="fixed bottom-0 left-0 right-0 p-6 bg-white/80 backdrop-blur-xl border-t border-stone-100 z-50">
         <div className="max-w-3xl mx-auto flex items-center space-x-6">
           <div className="flex items-center space-x-4 bg-stone-100 p-2 rounded-2xl">
-            <button className="p-3 bg-white rounded-xl shadow-sm text-stone-400 hover:text-orange-500 transition-colors">
+            <button 
+              onClick={() => setQuantity(prev => Math.max(1, prev - 1))}
+              className="p-3 bg-white rounded-xl shadow-sm text-stone-400 hover:text-orange-500 transition-colors"
+            >
               <Minus size={20} />
             </button>
-            <span className="text-xl font-black text-stone-800 px-2">1</span>
-            <button className="p-3 bg-white rounded-xl shadow-sm text-stone-400 hover:text-orange-500 transition-colors">
+            <span className="text-xl font-black text-stone-800 px-2">{quantity}</span>
+            <button 
+              onClick={() => setQuantity(prev => prev + 1)}
+              className="p-3 bg-white rounded-xl shadow-sm text-stone-400 hover:text-orange-500 transition-colors"
+            >
               <Plus size={20} />
             </button>
           </div>
           <motion.button 
+            disabled={isItemAdding}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => {
-              addToCart(item);
-              navigate('/cart');
+              addToCart(item, quantity);
+              // Navigation removed to show the 'Adding...' state before going to cart
+              setTimeout(() => navigate('/cart'), 500); 
             }}
-            className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-5 rounded-[2rem] font-black text-xl shadow-xl shadow-orange-100 transition-all uppercase tracking-widest"
+            className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-5 rounded-[2rem] font-black text-xl shadow-xl shadow-orange-100 transition-all uppercase tracking-widest flex items-center justify-center space-x-3 disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            Add to Order
+            {isItemAdding && <Loader2 className="w-6 h-6 animate-spin" />}
+            <span>{isItemAdding ? 'Adding...' : 'Add to Order'}</span>
           </motion.button>
         </div>
       </div>

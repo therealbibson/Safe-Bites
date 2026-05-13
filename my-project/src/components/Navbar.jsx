@@ -1,8 +1,7 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
-import { ShoppingCart, User } from 'lucide-react';
+import { ShoppingCart, User, ShieldCheck } from 'lucide-react';
 
 const Navbar = () => {
   const { cartCount } = useCart();
@@ -15,6 +14,16 @@ const Navbar = () => {
           SafeBite
         </Link>
         <div className="flex items-center space-x-4">
+          {isAuthenticated && user?.role === 'admin' && (
+            <Link 
+              to="/admin" 
+              className="flex items-center space-x-2 bg-orange-600 text-white px-4 py-2 rounded-full font-bold text-sm hover:bg-orange-700 transition-all shadow-md shadow-orange-100"
+            >
+              <ShieldCheck size={18} />
+              <span className="hidden sm:inline">Admin</span>
+            </Link>
+          )}
+          
           <Link to="/cart" className="relative p-2 bg-orange-100 rounded-full text-orange-600 hover:bg-orange-200 transition-colors">
             <ShoppingCart className="h-6 w-6" />
             {cartCount > 0 && (

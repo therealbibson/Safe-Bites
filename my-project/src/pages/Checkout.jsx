@@ -1,28 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 import { ChevronLeft, MapPin, CreditCard, ShoppingBag } from 'lucide-react';
 
 const Checkout = () => {
   const navigate = useNavigate();
   const { cart, cartTotal, placeOrder } = useCart();
+  const { isAuthenticated, user } = useAuth();
   const [isOrdered, setIsOrdered] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/signin?redirect=checkout');
+    }
+  }, [isAuthenticated, navigate]);
 
   const handlePlaceOrder = (e) => {
     e.preventDefault();
+    if (!isAuthenticated) return;
+    
     const formData = new FormData(e.target);
     const orderDetails = {
       address: formData.get('address'),
       city: formData.get('city'),
       zip: formData.get('zip'),
-      paymentMethod: 'Cash on Delivery'
+      paymentMethod: 'Cash on Delivery',
+      userName: user.name,
+      userEmail: user.email
     };
     
-    placeOrder(orderDetails);
-    setIsOrdered(true);
-    setTimeout(() => {
-      navigate('/orders');
-    }, 3000);
+    try {
+      placeOrder(orderDetails);
+      setIsOrdered(true);
+      setTimeout(() => {
+        navigate('/orders');
+      }, 3000);
+    } catch (error) {
+      alert(error.message);
+    }
   };
 
   if (isOrdered) {

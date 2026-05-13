@@ -11,7 +11,7 @@ const UserPage = () => {
 
   const handleLogout = () => {
     logout();
-    navigate('/');
+    navigate('/home');
   };
 
   const menuItems = [

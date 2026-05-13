@@ -1,26 +1,42 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { Search, Flame, Star, Clock, Heart } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import FoodCard from '../components/FoodCard';
 import Marquee from '../components/Marquee';
 
-const FOOD_ITEMS = [
-  { id: 1, name: 'Double Cheese Burger', price: 12.99, image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&auto=format&fit=crop&q=60', category: 'Burgers' },
-  { id: 2, name: 'Pepperoni Pizza', price: 15.50, image: 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=500&auto=format&fit=crop&q=60', category: 'Pizza' },
-  { id: 3, name: 'Spicy Ramen', price: 14.20, image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=500&auto=format&fit=crop&q=60', category: 'Asian' },
-  { id: 4, name: 'Garden Salad', price: 9.99, image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=500&auto=format&fit=crop&q=60', category: 'Salad' },
-  { id: 5, name: 'Chocolate Lava Cake', price: 7.50, image: 'https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=500&auto=format&fit=crop&q=60', category: 'Dessert' },
-  { id: 6, name: 'Mango Smoothie', price: 5.99, image: 'https://images.unsplash.com/photo-1523049673857-eb18f1d7b578?w=500&auto=format&fit=crop&q=60', category: 'Drinks' },
-];
-
 const Home = () => {
+  const [foods, setFoods] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const categories = ['All', 'Burgers', 'Pizza', 'Asian', 'Salad', 'Dessert', 'Drinks'];
   
   const heroRef = useRef(null);
   const menuRef = useRef(null);
+
+  useEffect(() => {
+    const fetchFoods = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/foods`);
+        const data = await response.json();
+        // Map backend fields to frontend expectations
+        const formattedData = data.map(item => ({
+          ...item,
+          id: item._id,
+          image: item.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60',
+          category: item.category || 'All' // Fallback if category is not provided as a string
+        }));
+        setFoods(formattedData);
+      } catch (error) {
+        console.error('Error fetching foods:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFoods();
+  }, []);
   
   const { scrollYProgress } = useScroll({
     target: heroRef,
@@ -36,12 +52,12 @@ const Home = () => {
   };
 
   const filteredItems = useMemo(() => {
-    return FOOD_ITEMS.filter(item => {
+    return foods.filter(item => {
       const matchesCategory = activeCategory === 'All' || item.category === activeCategory;
       const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
     });
-  }, [activeCategory, searchQuery]);
+  }, [activeCategory, searchQuery, foods]);
 
   return (
     <div className="min-h-screen bg-stone-50 pb-20 overflow-x-hidden pt-16">
@@ -164,7 +180,11 @@ const Home = () => {
           </div>
 
           {/* Dynamic Food Grid */}
-          {filteredItems.length > 0 ? (
+          {loading ? (
+            <div className="text-center py-20">
+              <p className="text-2xl text-stone-400 font-bold">Loading delicious foods...</p>
+            </div>
+          ) : filteredItems.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
               {filteredItems.map(item => (
                 <FoodCard key={item.id} item={item} />

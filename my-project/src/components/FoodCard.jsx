@@ -1,12 +1,14 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Plus } from 'lucide-react';
+import { Plus, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 
 const FoodCard = ({ item }) => {
-  const { addToCart } = useCart();
+  const { addToCart, isAdding } = useCart();
   const navigate = useNavigate();
+
+  const isItemAdding = isAdding(item.id);
 
   return (
     <motion.div 
@@ -39,16 +41,21 @@ const FoodCard = ({ item }) => {
           Savor the taste of our freshly prepared {item.name.toLowerCase()}, made with the finest local ingredients.
         </p>
         <motion.button 
+          disabled={isItemAdding}
           onClick={(e) => {
             e.stopPropagation();
             addToCart(item);
           }}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          className="w-full bg-orange-500 hover:bg-orange-600 text-white py-4 rounded-2xl font-bold transition-all shadow-lg shadow-orange-100 flex items-center justify-center space-x-2"
+          className="w-full bg-orange-500 hover:bg-orange-600 text-white py-4 rounded-2xl font-bold transition-all shadow-lg shadow-orange-100 flex items-center justify-center space-x-2 disabled:opacity-70 disabled:cursor-not-allowed"
         >
-          <Plus className="w-5 h-5" />
-          <span>Add to Order</span>
+          {isItemAdding ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
+            <Plus className="w-5 h-5" />
+          )}
+          <span>{isItemAdding ? 'Adding...' : 'Add to Cart'}</span>
         </motion.button>
       </div>
     </motion.div>
