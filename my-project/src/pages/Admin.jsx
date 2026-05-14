@@ -180,58 +180,43 @@ const Admin = () => {
       )}
       
       <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="flex flex-col md:flex-row gap-8">
-          {/* Sidebar */}
-          <aside className="w-full md:w-64 space-y-2">
-            <button 
-              onClick={() => setActiveTab('dashboard')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'dashboard' ? 'bg-orange-600 text-white shadow-lg' : 'bg-white text-stone-600 hover:bg-orange-50'}`}
-            >
-              <LayoutDashboard size={20} />
-              <span>Dashboard</span>
-            </button>
-            <button 
-              onClick={() => setActiveTab('products')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'products' ? 'bg-orange-600 text-white shadow-lg' : 'bg-white text-stone-600 hover:bg-orange-50'}`}
-            >
-              <Package size={20} />
-              <span>Products</span>
-            </button>
-            <button 
-              onClick={() => setActiveTab('orders')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'orders' ? 'bg-orange-600 text-white shadow-lg' : 'bg-white text-stone-600 hover:bg-orange-50'}`}
-            >
-              <ShoppingBag size={20} />
-              <span>Orders</span>
-            </button>
-            <button 
-              onClick={() => setActiveTab('users')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'users' ? 'bg-orange-600 text-white shadow-lg' : 'bg-white text-stone-600 hover:bg-orange-50'}`}
-            >
-              <Users size={20} />
-              <span>Users</span>
-            </button>
-            <button 
-              onClick={() => setActiveTab('settings')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'settings' ? 'bg-orange-600 text-white shadow-lg' : 'bg-white text-stone-600 hover:bg-orange-50'}`}
-            >
-              <Settings size={20} />
-              <span>Settings</span>
-            </button>
+        <div className="flex flex-col lg:flex-row gap-8">
+          {/* Sidebar - Horizontal on mobile, vertical on desktop */}
+          <aside className="w-full lg:w-64 flex lg:flex-col overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 gap-2 scrollbar-hide sticky top-16 lg:top-24 bg-stone-50 z-20">
+            {[
+              { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+              { id: 'products', icon: Package, label: 'Products' },
+              { id: 'orders', icon: ShoppingBag, label: 'Orders' },
+              { id: 'users', icon: Users, label: 'Users' },
+              { id: 'settings', icon: Settings, label: 'Settings' }
+            ].map((tab) => (
+              <button 
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-shrink-0 lg:w-full flex items-center space-x-2 sm:space-x-3 px-4 sm:px-6 lg:px-4 py-2.5 sm:py-3 rounded-xl font-bold transition-all text-sm sm:text-base ${
+                  activeTab === tab.id 
+                    ? 'bg-orange-600 text-white shadow-lg' 
+                    : 'bg-white text-stone-600 hover:bg-orange-50 border border-stone-100'
+                }`}
+              >
+                <tab.icon size={18} className="sm:w-5 sm:h-5" />
+                <span>{tab.label}</span>
+              </button>
+            ))}
           </aside>
 
           {/* Main Content */}
-          <main className="flex-1">
+          <main className="flex-1 min-w-0">
             {activeTab === 'dashboard' && (
-              <div className="space-y-8">
+              <div className="space-y-6 sm:space-y-8">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {stats.map((stat, idx) => (
-                    <div key={idx} className="bg-white p-6 rounded-2xl shadow-sm border border-stone-100">
-                      <div className={`${stat.color} w-12 h-12 rounded-xl flex items-center justify-center text-white mb-4`}>
-                        <stat.icon size={24} />
+                    <div key={idx} className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-stone-100">
+                      <div className={`${stat.color} w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center text-white mb-3 sm:mb-4`}>
+                        <stat.icon size={20} className="sm:w-6 sm:h-6" />
                       </div>
-                      <p className="text-stone-500 font-medium">{stat.label}</p>
-                      <h3 className="text-2xl font-black text-stone-800">{stat.value}</h3>
+                      <p className="text-stone-500 font-medium text-xs sm:text-sm uppercase tracking-wider">{stat.label}</p>
+                      <h3 className="text-xl sm:text-2xl font-black text-stone-800">{stat.value}</h3>
                     </div>
                   ))}
                 </div>
@@ -278,25 +263,58 @@ const Admin = () => {
             )}
 
             {activeTab === 'products' && (
-              <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6">
-                <div className="flex items-center justify-between mb-6">
+              <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
                   <h3 className="text-xl font-black text-stone-800 uppercase tracking-tight">Product Management</h3>
                   <button 
                     onClick={() => handleOpenModal()}
-                    className="bg-orange-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center space-x-2 hover:bg-orange-700 transition-all shadow-md"
+                    className="bg-orange-600 text-white px-5 py-3 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 hover:bg-orange-700 transition-all shadow-md active:scale-95"
                   >
                     <Plus size={18} />
-                    <span>Add New</span>
+                    <span>Add New Product</span>
                   </button>
                 </div>
-                <div className="overflow-x-auto">
+                
+                {/* Mobile: Card View | Desktop: Table View */}
+                <div className="block sm:hidden space-y-3">
+                  {foods.map((product) => (
+                    <div key={product._id} className="border border-stone-100 rounded-xl p-3 flex items-center space-x-3 bg-stone-50/50">
+                      <div className="w-14 h-14 bg-stone-100 rounded-lg overflow-hidden flex-shrink-0">
+                        <img src={product.imageUrl || `https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=100&h=100&fit=crop`} alt={product.name} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-stone-800 truncate text-sm">{product.name}</h4>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-[10px] bg-stone-100 text-stone-500 px-2 py-0.5 rounded-full font-bold uppercase">{product.category}</span>
+                          <span className="font-black text-orange-600 text-sm">${product.price.toFixed(2)}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <button 
+                          onClick={() => handleOpenModal(product)}
+                          className="p-2 text-blue-600 bg-blue-50 rounded-lg active:scale-90"
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteFood(product._id)}
+                          className="p-2 text-red-600 bg-red-50 rounded-lg active:scale-90"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="hidden sm:block overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
                       <tr className="border-b border-stone-100">
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Product</th>
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Category</th>
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Price</th>
-                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Actions</th>
+                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-50">
@@ -308,19 +326,19 @@ const Admin = () => {
                             </div>
                             <span className="font-bold text-stone-700">{product.name}</span>
                           </td>
-                          <td className="py-4 text-stone-600 text-sm">{product.category}</td>
-                          <td className="py-4 font-bold text-stone-800">${product.price.toFixed(2)}</td>
-                          <td className="py-4">
-                            <div className="flex items-center space-x-2">
+                          <td className="py-4 text-stone-600 text-sm font-medium">{product.category}</td>
+                          <td className="py-4 font-black text-stone-800">${product.price.toFixed(2)}</td>
+                          <td className="py-4 text-right">
+                            <div className="flex items-center justify-end space-x-2">
                               <button 
                                 onClick={() => handleOpenModal(product)}
-                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
                               >
                                 <Edit size={18} />
                               </button>
                               <button 
                                 onClick={() => handleDeleteFood(product._id)}
-                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
                               >
                                 <Trash2 size={18} />
                               </button>
@@ -335,16 +353,69 @@ const Admin = () => {
             )}
 
             {activeTab === 'orders' && (
-              <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6">
+              <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-4 sm:p-6">
                 <h3 className="text-xl font-black text-stone-800 uppercase tracking-tight mb-6">Order Management</h3>
-                <div className="overflow-x-auto">
+                
+                {/* Mobile: Card View */}
+                <div className="block sm:hidden space-y-3">
+                  {orders.map((order) => (
+                    <div key={order._id} className="border border-stone-100 rounded-xl p-4 bg-stone-50/50">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <span className="text-[10px] font-black text-stone-400 uppercase tracking-wider block">Order ID</span>
+                          <h4 className="font-bold text-stone-800 text-sm">#{order._id.substring(18)}</h4>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] font-black text-stone-400 uppercase tracking-wider block">Amount</span>
+                          <span className="font-black text-orange-600 text-sm">${order.totalAmount.toFixed(2)}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t border-stone-100">
+                        <select 
+                          value={order.status}
+                          onChange={async (e) => {
+                            const newStatus = e.target.value;
+                            try {
+                              const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/orders/${order._id}/status`, {
+                                method: 'PATCH',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  'x-user-id': user?.id || user?._id,
+                                  'x-user-role': user?.role
+                                },
+                                body: JSON.stringify({ status: newStatus })
+                              });
+                              if (response.ok) {
+                                setOrders(orders.map(o => o._id === order._id ? { ...o, status: newStatus } : o));
+                              }
+                            } catch (error) {
+                              console.error('Error updating status:', error);
+                            }
+                          }}
+                          className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold outline-none border-none shadow-sm ${
+                            order.status === 'delivered' ? 'bg-green-100 text-green-700' : 
+                            order.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
+                          }`}
+                        >
+                          {["pending", "confirmed", "preparing", "out_for_delivery", "delivered", "cancelled"].map(s => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                        <button className="px-4 py-2 bg-white border border-stone-200 text-stone-600 text-xs font-bold rounded-lg active:bg-stone-50">Details</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop: Table View */}
+                <div className="hidden sm:block overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
                       <tr className="border-b border-stone-100">
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs">ID</th>
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Status</th>
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Amount</th>
-                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Actions</th>
+                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-50">
@@ -383,8 +454,8 @@ const Admin = () => {
                               ))}
                             </select>
                           </td>
-                          <td className="py-4 font-bold text-stone-800">${order.totalAmount.toFixed(2)}</td>
-                          <td className="py-4">
+                          <td className="py-4 font-black text-stone-800">${order.totalAmount.toFixed(2)}</td>
+                          <td className="py-4 text-right">
                             <button className="text-orange-600 font-bold text-sm hover:underline">Details</button>
                           </td>
                         </tr>
@@ -396,24 +467,51 @@ const Admin = () => {
             )}
 
             {activeTab === 'users' && (
-              <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6">
+              <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-4 sm:p-6">
                 <h3 className="text-xl font-black text-stone-800 uppercase tracking-tight mb-6">User Management</h3>
-                <div className="overflow-x-auto">
+                
+                {/* Mobile: Card View */}
+                <div className="block sm:hidden space-y-3">
+                  {users.map((u) => (
+                    <div key={u._id} className="border border-stone-100 rounded-xl p-4 bg-stone-50/50">
+                      <div className="flex items-center space-x-3 mb-3">
+                        <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 font-bold">
+                          {u.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-bold text-stone-800 truncate text-sm">{u.name}</h4>
+                          <p className="text-xs text-stone-400 truncate">{u.email}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-stone-100">
+                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                          {u.role}
+                        </span>
+                        <button className="text-stone-400 hover:text-orange-600 transition-colors">
+                          <Settings size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop: Table View */}
+                <div className="hidden sm:block overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
                       <tr className="border-b border-stone-100">
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Name</th>
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Email</th>
-                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Role</th>
+                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs text-right">Role</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-50">
                       {users.map((u) => (
                         <tr key={u._id} className="hover:bg-stone-50 transition-colors">
                           <td className="py-4 font-bold text-stone-700">{u.name}</td>
-                          <td className="py-4 text-stone-600">{u.email}</td>
-                          <td className="py-4">
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                          <td className="py-4 text-stone-600 text-sm">{u.email}</td>
+                          <td className="py-4 text-right">
+                            <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
                               {u.role}
                             </span>
                           </td>

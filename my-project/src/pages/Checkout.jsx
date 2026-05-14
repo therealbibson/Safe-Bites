@@ -60,70 +60,70 @@ const Checkout = () => {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 pb-20 pt-24">
-      <header className="bg-white shadow-sm fixed top-0 left-0 right-0 z-50 h-16 flex items-center">
-        <div className="max-w-7xl mx-auto px-4 w-full flex items-center">
-          <button onClick={() => navigate(-1)} className="p-2 mr-4 text-stone-600">
-            <ChevronLeft size={24} />
-          </button>
-          <h1 className="text-xl font-black text-stone-800 tracking-tight uppercase">Checkout</h1>
-        </div>
-      </header>
+    <div className="min-h-screen bg-stone-50 pb-20 pt-16">
+      <Navbar />
 
       <main className="max-w-3xl mx-auto px-4 py-8">
+        <div className="flex items-center mb-6 sm:mb-8">
+          <button onClick={() => navigate(-1)} className="p-2 mr-3 sm:mr-4 bg-white rounded-full shadow-sm text-stone-600 hover:bg-orange-50 hover:text-orange-600 transition-all">
+            <ChevronLeft size={20} className="sm:w-6 sm:h-6" />
+          </button>
+          <h1 className="text-2xl sm:text-3xl font-black text-stone-800 tracking-tight uppercase">Checkout</h1>
+        </div>
+
         <form onSubmit={handlePlaceOrder}>
-          <div className="space-y-6">
-            <section className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100">
-              <h2 className="text-xl font-black text-stone-800 mb-6 flex items-center">
-                <MapPin className="text-orange-500 mr-3" size={24} />
+          <div className="space-y-4 sm:space-y-6">
+            <section className="bg-white p-5 sm:p-8 rounded-[1.5rem] sm:rounded-[2.5rem] shadow-sm border border-stone-100">
+              <h2 className="text-lg sm:text-xl font-black text-stone-800 mb-4 sm:mb-6 flex items-center">
+                <MapPin className="text-orange-500 mr-2 sm:mr-3" size={20} className="sm:w-6 sm:h-6" />
                 Delivery Address
               </h2>
-              <div className="space-y-4">
-                <input name="address" type="text" placeholder="Street Address" required className="w-full px-6 py-4 bg-stone-50 border-2 border-transparent rounded-2xl focus:border-orange-500 focus:bg-white outline-none transition-all font-medium" />
-                <div className="grid grid-cols-2 gap-4">
-                  <input name="city" type="text" placeholder="City" required className="px-6 py-4 bg-stone-50 border-2 border-transparent rounded-2xl focus:border-orange-500 focus:bg-white outline-none transition-all font-medium" />
-                  <input name="zip" type="text" placeholder="Zip Code" required className="px-6 py-4 bg-stone-50 border-2 border-transparent rounded-2xl focus:border-orange-500 focus:bg-white outline-none transition-all font-medium" />
+              <div className="space-y-3 sm:space-y-4">
+                <input name="address" type="text" placeholder="Street Address" required className="w-full px-4 sm:px-6 py-3.5 sm:py-4 bg-stone-50 border-2 border-transparent rounded-xl sm:rounded-2xl focus:border-orange-500 focus:bg-white outline-none transition-all font-medium text-sm sm:text-base" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  <input name="city" type="text" placeholder="City" required className="px-4 sm:px-6 py-3.5 sm:py-4 bg-stone-50 border-2 border-transparent rounded-xl sm:rounded-2xl focus:border-orange-500 focus:bg-white outline-none transition-all font-medium text-sm sm:text-base" />
+                  <input name="zip" type="text" placeholder="Zip Code" required className="px-4 sm:px-6 py-3.5 sm:py-4 bg-stone-50 border-2 border-transparent rounded-xl sm:rounded-2xl focus:border-orange-500 focus:bg-white outline-none transition-all font-medium text-sm sm:text-base" />
                 </div>
               </div>
             </section>
 
-            <section className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100">
-              <h2 className="text-xl font-black text-stone-800 mb-6 flex items-center">
-                <CreditCard className="text-orange-500 mr-3" size={24} />
+            <section className="bg-white p-5 sm:p-8 rounded-[1.5rem] sm:rounded-[2.5rem] shadow-sm border border-stone-100">
+              <h2 className="text-lg sm:text-xl font-black text-stone-800 mb-4 sm:mb-6 flex items-center">
+                <CreditCard className="text-orange-500 mr-2 sm:mr-3" size={20} className="sm:w-6 sm:h-6" />
                 Payment Method
               </h2>
-              <div className="flex space-x-4">
-                <div className="flex-1 p-6 border-2 border-orange-500 bg-orange-50 rounded-[2rem] flex flex-col items-center">
-                  <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mb-3">
-                    <span className="font-black text-orange-600">$</span>
+              <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
+                <div className="flex-1 p-4 sm:p-6 border-2 border-orange-500 bg-orange-50 rounded-[1.5rem] sm:rounded-[2rem] flex flex-col items-center">
+                  <div className="w-8 h-8 sm:w-12 sm:h-12 bg-orange-100 rounded-full flex items-center justify-center mb-2 sm:mb-3">
+                    <span className="font-black text-orange-600 text-sm sm:text-base">$</span>
                   </div>
-                  <span className="text-sm font-black text-orange-600 uppercase tracking-wider">Cash on Delivery</span>
+                  <span className="text-[10px] sm:text-sm font-black text-orange-600 uppercase tracking-wider text-center">Cash on Delivery</span>
                 </div>
-                <div className="flex-1 p-6 border-2 border-stone-100 rounded-[2rem] flex flex-col items-center opacity-40">
-                  <div className="w-12 h-12 bg-stone-100 rounded-full flex items-center justify-center mb-3">
-                    <CreditCard size={24} className="text-stone-400" />
+                <div className="flex-1 p-4 sm:p-6 border-2 border-stone-100 rounded-[1.5rem] sm:rounded-[2rem] flex flex-col items-center opacity-40">
+                  <div className="w-8 h-8 sm:w-12 sm:h-12 bg-stone-100 rounded-full flex items-center justify-center mb-2 sm:mb-3">
+                    <CreditCard size={18} className="text-stone-400 sm:w-6 sm:h-6" />
                   </div>
-                  <span className="text-sm font-black text-stone-400 uppercase tracking-wider">Credit Card</span>
+                  <span className="text-[10px] sm:text-sm font-black text-stone-400 uppercase tracking-wider text-center">Credit Card</span>
                 </div>
               </div>
             </section>
 
-            <section className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100">
-              <div className="flex justify-between items-center py-3 border-b border-stone-50">
-                <span className="text-stone-500 font-bold">{cart.length} items</span>
-                <span className="font-black text-stone-800">${cartTotal.toFixed(2)}</span>
+            <section className="bg-white p-6 sm:p-8 rounded-[1.5rem] sm:rounded-[2.5rem] shadow-sm border border-stone-100">
+              <div className="flex justify-between items-center py-2 sm:py-3 border-b border-stone-50">
+                <span className="text-stone-500 font-bold text-sm sm:text-base">{cart.length} items</span>
+                <span className="font-black text-stone-800 text-sm sm:text-base">${cartTotal.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between items-center py-3 border-b border-stone-50">
-                <span className="text-stone-500 font-bold">Delivery</span>
-                <span className="font-black text-stone-800">$2.00</span>
+              <div className="flex justify-between items-center py-2 sm:py-3 border-b border-stone-50">
+                <span className="text-stone-500 font-bold text-sm sm:text-base">Delivery</span>
+                <span className="font-black text-stone-800 text-sm sm:text-base">$2.00</span>
               </div>
-              <div className="flex justify-between items-center pt-6">
-                <span className="text-xl font-black text-stone-800">Total Amount</span>
-                <span className="text-3xl font-black text-orange-600">${(cartTotal + 2).toFixed(2)}</span>
+              <div className="flex justify-between items-center pt-4 sm:pt-6">
+                <span className="text-lg sm:text-xl font-black text-stone-800">Total Amount</span>
+                <span className="text-2xl sm:text-3xl font-black text-orange-600">${(cartTotal + 2).toFixed(2)}</span>
               </div>
             </section>
 
-            <button type="submit" className="w-full bg-orange-500 text-white py-6 rounded-[2rem] font-black text-xl shadow-xl shadow-orange-100 hover:bg-orange-600 transition-all uppercase tracking-widest">
+            <button type="submit" className="w-full bg-orange-500 text-white py-4 sm:py-6 rounded-[1.5rem] sm:rounded-[2rem] font-black text-lg sm:text-xl shadow-xl shadow-orange-100 hover:bg-orange-600 transition-all uppercase tracking-widest">
               Confirm Order
             </button>
           </div>

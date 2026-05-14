@@ -31,23 +31,23 @@ const UserPage = () => {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-stone-100 mb-8"
+          className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-8 shadow-sm border border-stone-100 mb-6 sm:mb-8"
         >
-          <div className="flex items-center space-x-6">
-            <div className="bg-orange-100 p-6 rounded-full text-orange-600">
-              <User size={48} />
+          <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left space-y-4 sm:space-y-0 sm:space-x-6">
+            <div className="bg-orange-100 p-4 sm:p-6 rounded-full text-orange-600">
+              <User size={32} className="sm:w-12 sm:h-12" />
             </div>
             <div>
-              <h1 className="text-3xl font-black text-stone-800 tracking-tight">{user?.name || 'SafeBite User'}</h1>
-              <p className="text-stone-500 font-medium">{user?.email}</p>
-              <span className="inline-block mt-2 px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full uppercase tracking-wider">
+              <h1 className="text-2xl sm:text-3xl font-black text-stone-800 tracking-tight">{user?.name || 'SafeBite User'}</h1>
+              <p className="text-stone-500 font-medium text-sm sm:text-base">{user?.email}</p>
+              <span className="inline-block mt-2 px-3 py-1 bg-green-100 text-green-700 text-[10px] sm:text-xs font-bold rounded-full uppercase tracking-wider">
                 Gold Member
               </span>
             </div>
           </div>
         </motion.div>
 
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           {menuItems.map((item, index) => (
             <motion.button
               key={index}
@@ -56,18 +56,18 @@ const UserPage = () => {
               transition={{ delay: index * 0.1 }}
               whileHover={{ x: 8 }}
               onClick={() => item.path && navigate(item.path)}
-              className="w-full bg-white p-6 rounded-[2rem] shadow-sm hover:shadow-md transition-all border border-stone-50 flex items-center justify-between group"
+              className="w-full bg-white p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] shadow-sm hover:shadow-md transition-all border border-stone-50 flex items-center justify-between group"
             >
-              <div className="flex items-center space-x-4">
-                <div className="p-3 bg-stone-50 rounded-xl text-stone-400 group-hover:bg-orange-100 group-hover:text-orange-600 transition-colors">
-                  {item.icon}
+              <div className="flex items-center space-x-3 sm:space-x-4">
+                <div className="p-2.5 sm:p-3 bg-stone-50 rounded-xl text-stone-400 group-hover:bg-orange-100 group-hover:text-orange-600 transition-colors">
+                  {React.cloneElement(item.icon, { size: 20, className: "sm:w-5 sm:h-5" })}
                 </div>
                 <div className="text-left">
-                  <h3 className="font-bold text-stone-800">{item.label}</h3>
-                  <p className="text-stone-400 text-sm">{item.desc}</p>
+                  <h3 className="font-bold text-stone-800 text-sm sm:text-base">{item.label}</h3>
+                  <p className="text-stone-400 text-xs sm:text-sm">{item.desc}</p>
                 </div>
               </div>
-              <ChevronRight className="text-stone-300 group-hover:text-orange-500 transition-colors" />
+              <ChevronRight size={18} className="text-stone-300 group-hover:text-orange-500 transition-colors sm:w-5 sm:h-5" />
             </motion.button>
           ))}
         </div>
@@ -77,9 +77,9 @@ const UserPage = () => {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.6 }}
           onClick={handleLogout}
-          className="w-full mt-12 bg-red-50 text-red-600 py-5 rounded-[2rem] font-black flex items-center justify-center space-x-3 hover:bg-red-100 transition-all border border-red-100"
+          className="w-full mt-8 sm:mt-12 bg-red-50 text-red-600 py-4 sm:py-5 rounded-[1.5rem] sm:rounded-[2rem] font-black flex items-center justify-center space-x-2 sm:space-x-3 hover:bg-red-100 transition-all border border-red-100 text-sm sm:text-base"
         >
-          <LogOut size={24} />
+          <LogOut size={20} className="sm:w-6 sm:h-6" />
           <span>Log Out of Account</span>
         </motion.button>
       </main>
