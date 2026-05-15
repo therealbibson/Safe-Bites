@@ -2,12 +2,13 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
-import { ChevronLeft, Trash2, ShoppingBag } from 'lucide-react';
+import { ChevronLeft, Trash2, ShoppingBag, Plus, Minus } from 'lucide-react';
 import Navbar from '../components/Navbar';
+import { motion } from 'framer-motion';
 
 const Cart = () => {
   const navigate = useNavigate();
-  const { cart, removeFromCart, cartTotal, loading } = useCart();
+  const { cart, removeFromCart, updateQuantity, cartTotal, loading } = useCart();
   const { isAuthenticated } = useAuth();
 
   const handleProceedToCheckout = () => {
@@ -40,7 +41,7 @@ const Cart = () => {
               <ShoppingBag size={64} className="sm:w-20 sm:h-20" />
             </div>
             <p className="text-xl sm:text-2xl text-stone-400 font-bold mb-6 sm:mb-8 tracking-tight">Your cart is empty</p>
-            <Link to="/" className="bg-orange-500 text-white px-8 sm:px-10 py-3.5 sm:py-4 rounded-full font-black uppercase tracking-widest text-xs sm:text-sm shadow-lg shadow-orange-100">
+            <Link to="/home" className="bg-orange-500 text-white px-8 sm:px-10 py-3.5 sm:py-4 rounded-full font-black uppercase tracking-widest text-xs sm:text-sm shadow-lg shadow-orange-100">
               Browse Menu
             </Link>
           </div>
@@ -51,8 +52,22 @@ const Cart = () => {
                 <img src={item.imageUrl} alt={item.name} className="w-16 h-16 sm:w-24 sm:h-24 object-cover rounded-xl sm:rounded-2xl mr-3 sm:mr-6" />
                 <div className="flex-1 min-w-0">
                   <h3 className="font-black text-stone-800 text-sm sm:text-lg leading-tight truncate">{item.name}</h3>
-                  <p className="text-stone-500 text-[10px] sm:text-sm mb-0.5 sm:mb-1 font-bold">Qty: {item.quantity}</p>
-                  <p className="text-orange-600 font-black text-sm sm:text-base">${item.price.toFixed(2)}</p>
+                  <div className="flex items-center space-x-3 mt-1 sm:mt-2">
+                    <button 
+                      onClick={() => item.quantity > 1 ? updateQuantity(item.productId, item.quantity - 1) : removeFromCart(item.productId)}
+                      className="p-1 sm:p-1.5 bg-stone-100 rounded-lg text-stone-600 hover:bg-orange-100 hover:text-orange-600 transition-colors"
+                    >
+                      <Minus size={14} className="sm:w-4 sm:h-4" />
+                    </button>
+                    <span className="text-stone-800 font-black text-sm sm:text-base w-4 text-center">{item.quantity}</span>
+                    <button 
+                      onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                      className="p-1 sm:p-1.5 bg-stone-100 rounded-lg text-stone-600 hover:bg-orange-100 hover:text-orange-600 transition-colors"
+                    >
+                      <Plus size={14} className="sm:w-4 sm:h-4" />
+                    </button>
+                  </div>
+                  <p className="text-orange-600 font-black text-sm sm:text-base mt-1 sm:mt-2">${item.price.toFixed(2)}</p>
                 </div>
                 <button 
                   onClick={() => removeFromCart(item.productId)}

@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
-import { ChevronLeft, MapPin, CreditCard, ShoppingBag } from 'lucide-react';
+import { ChevronLeft, MapPin, CreditCard, ShoppingBag, Loader2 } from 'lucide-react';
+import Navbar from '../components/Navbar';
 
 const Checkout = () => {
   const navigate = useNavigate();
   const { cart, cartTotal, placeOrder } = useCart();
   const { isAuthenticated, user } = useAuth();
   const [isOrdered, setIsOrdered] = useState(false);
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -16,28 +18,28 @@ const Checkout = () => {
     }
   }, [isAuthenticated, navigate]);
 
-  const handlePlaceOrder = (e) => {
+  const handlePlaceOrder = async (e) => {
     e.preventDefault();
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || isPlacingOrder) return;
     
+    setIsPlacingOrder(true);
     const formData = new FormData(e.target);
     const orderDetails = {
-      address: formData.get('address'),
-      city: formData.get('city'),
-      zip: formData.get('zip'),
-      paymentMethod: 'Cash on Delivery',
-      userName: user.name,
-      userEmail: user.email
+      deliveryAddress: `${formData.get('address')}, ${formData.get('city')}, ${formData.get('zip')}`,
+      phoneNumber: formData.get('phone'),
+      paymentMethod: 'Cash on Delivery'
     };
     
     try {
-      placeOrder(orderDetails);
+      await placeOrder(orderDetails);
       setIsOrdered(true);
       setTimeout(() => {
         navigate('/orders');
       }, 3000);
     } catch (error) {
       alert(error.message);
+    } finally {
+      setIsPlacingOrder(false);
     }
   };
 
@@ -84,6 +86,7 @@ const Checkout = () => {
                   <input name="city" type="text" placeholder="City" required className="px-4 sm:px-6 py-3.5 sm:py-4 bg-stone-50 border-2 border-transparent rounded-xl sm:rounded-2xl focus:border-orange-500 focus:bg-white outline-none transition-all font-medium text-sm sm:text-base" />
                   <input name="zip" type="text" placeholder="Zip Code" required className="px-4 sm:px-6 py-3.5 sm:py-4 bg-stone-50 border-2 border-transparent rounded-xl sm:rounded-2xl focus:border-orange-500 focus:bg-white outline-none transition-all font-medium text-sm sm:text-base" />
                 </div>
+                <input name="phone" type="tel" placeholder="Phone Number" required className="w-full px-4 sm:px-6 py-3.5 sm:py-4 bg-stone-50 border-2 border-transparent rounded-xl sm:rounded-2xl focus:border-orange-500 focus:bg-white outline-none transition-all font-medium text-sm sm:text-base" />
               </div>
             </section>
 
@@ -123,8 +126,13 @@ const Checkout = () => {
               </div>
             </section>
 
-            <button type="submit" className="w-full bg-orange-500 text-white py-4 sm:py-6 rounded-[1.5rem] sm:rounded-[2rem] font-black text-lg sm:text-xl shadow-xl shadow-orange-100 hover:bg-orange-600 transition-all uppercase tracking-widest">
-              Confirm Order
+            <button 
+              type="submit" 
+              disabled={isPlacingOrder}
+              className="w-full bg-orange-500 text-white py-4 sm:py-6 rounded-[1.5rem] sm:rounded-[2rem] font-black text-lg sm:text-xl shadow-xl shadow-orange-100 hover:bg-orange-600 transition-all uppercase tracking-widest flex items-center justify-center space-x-2 disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {isPlacingOrder && <Loader2 className="w-6 h-6 animate-spin" />}
+              <span>{isPlacingOrder ? 'Processing...' : 'Confirm Order'}</span>
             </button>
           </div>
         </form>

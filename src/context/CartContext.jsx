@@ -5,166 +5,165 @@ const CartContext = createContext();
 
 export const CartProvider = ({ children }) => {
   const { user, isAuthenticated } = useAuth();
-  const [cartItems, setCartItems] = useState([]);
+  const [cart, setCart] = useState(() => {
+    const savedCart = localStorage.getItem('safebite_cart');
+    return savedCart ? JSON.parse(savedCart) : [];
+  });
+  const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [addingItems, setAddingItems] = useState(new Set());
-  const [orders, setOrders] = useState(() => {
-    const savedOrders = localStorage.getItem('safebite_orders');
-    return savedOrders ? JSON.parse(savedOrders) : [];
-  });
-
-  const fetchCart = async () => {
-    if (!isAuthenticated) {
-      setCartItems([]);
-      return;
-    }
-    setLoading(true);
-    try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/cart`, {
-        headers: {
-          'x-user-id': user.id || user._id,
-          'x-user-role': user.role
-        }
-      });
-      const data = await response.json();
-      setCartItems(data.items || []);
-    } catch (error) {
-      console.error('Error fetching cart:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
-    fetchCart();
+    localStorage.setItem('safebite_cart', JSON.stringify(cart));
+  }, [cart]);
+
+  // Fetch orders from backend when authenticated
+  useEffect(() => {
+    const fetchOrders = async () => {
+      if (!isAuthenticated) {
+        setOrders([]);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/orders`, {
+          headers: {
+            'x-user-id': user?.id || user?._id,
+            'x-user-role': user?.role
+          }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          // Map backend data to frontend format
+          const formattedOrders = data.map(order => ({
+            id: order._id,
+            date: order.createdAt,
+            items: order.items,
+            total: order.totalAmount,
+            status: order.status,
+            deliveryAddress: order.deliveryAddress,
+            phoneNumber: order.phoneNumber
+          }));
+          setOrders(formattedOrders);
+        }
+      } catch (error) {
+        console.error('Error fetching orders:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOrders();
   }, [isAuthenticated, user]);
 
-  useEffect(() => {
-    localStorage.setItem('safebite_orders', JSON.stringify(orders));
-  }, [orders]);
+  const isAdding = (productId) => addingItems.has(productId);
 
-  const addToCart = async (product, quantity = 1) => {
-    const productId = product.id || product._id;
-    if (!isAuthenticated) {
-      // Local fallback for guest users
-      setCartItems(prev => {
-        const existing = prev.find(item => item.productId === productId);
-        if (existing) {
-          return prev.map(item => 
-            item.productId === productId 
-              ? { ...item, quantity: item.quantity + quantity } 
-              : item
-          );
-        }
-        return [...prev, {
-          productId: productId,
-          name: product.name,
-          price: product.price,
-          imageUrl: product.image || product.imageUrl,
-          quantity
-        }];
-      });
-      return;
-    }
-
+  const addToCart = async (product) => {
+    const productId = product._id || product.id;
     setAddingItems(prev => new Set(prev).add(productId));
-    try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/cart/items`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': user.id || user._id,
-          'x-user-role': user.role
-        },
-        body: JSON.stringify({ productId, quantity })
-      });
-      const data = await response.json();
-      setCartItems(data.items || []);
-    } catch (error) {
-      console.error('Error adding to cart:', error);
-    } finally {
-      setAddingItems(prev => {
-        const next = new Set(prev);
-        next.delete(productId);
-        return next;
-      });
-    }
+
+    // Small delay for UX and to show the loading state
+    await new Promise(resolve => setTimeout(resolve, 600));
+
+    setCart(prevCart => {
+      const existingItem = prevCart.find(item => item.productId === productId);
+      if (existingItem) {
+        return prevCart.map(item =>
+          item.productId === productId
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        );
+      }
+      return [...prevCart, {
+        productId: productId,
+        name: product.name,
+        price: product.price,
+        imageUrl: product.imageUrl || product.image,
+        quantity: 1
+      }];
+    });
+
+    setAddingItems(prev => {
+      const next = new Set(prev);
+      next.delete(productId);
+      return next;
+    });
   };
 
-  const removeFromCart = async (productId) => {
-    if (!isAuthenticated) {
-      setCartItems(prev => prev.filter(item => item.productId !== productId));
-      return;
-    }
-
-    try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/cart/items/${productId}`, {
-        method: 'DELETE',
-        headers: {
-          'x-user-id': user.id || user._id,
-          'x-user-role': user.role
-        }
-      });
-      const data = await response.json();
-      setCartItems(data.items || []);
-    } catch (error) {
-      console.error('Error removing from cart:', error);
-    }
+  const removeFromCart = (productId) => {
+    setCart(prevCart => prevCart.filter(item => item.productId !== productId));
   };
 
-  const clearCart = async () => {
-    if (!isAuthenticated) {
-      setCartItems([]);
-      return;
-    }
-
-    try {
-      await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/cart`, {
-        method: 'DELETE',
-        headers: {
-          'x-user-id': user.id || user._id,
-          'x-user-role': user.role
-        }
-      });
-      setCartItems([]);
-    } catch (error) {
-      console.error('Error clearing cart:', error);
-    }
+  const updateQuantity = (productId, quantity) => {
+    if (quantity < 1) return;
+    setCart(prevCart =>
+      prevCart.map(item =>
+        item.productId === productId ? { ...item, quantity } : item
+      )
+    );
   };
 
-  const placeOrder = (orderDetails) => {
+  const clearCart = () => {
+    setCart([]);
+  };
+
+  const placeOrder = async (orderDetails) => {
     if (!isAuthenticated) {
       throw new Error('You must be logged in to place an order');
     }
 
-    const newOrder = {
-      id: `ORD-${Math.floor(100000 + Math.random() * 900000)}`,
-      userId: user.id || user._id,
-      date: new Date().toISOString(),
-      items: [...cartItems],
-      total: cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) + 2.00,
-      status: 'In Progress',
-      ...orderDetails
-    };
-    setOrders([newOrder, ...orders]);
-    clearCart();
-    return newOrder;
+    try {
+      // Place order with items from local cart
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/orders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user?.id || user?._id
+        },
+        body: JSON.stringify({
+          ...orderDetails,
+          items: cart
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to place order');
+      }
+
+      const newOrderData = await response.json();
+      const formattedNewOrder = {
+        id: newOrderData._id,
+        date: newOrderData.createdAt,
+        items: newOrderData.items,
+        total: newOrderData.totalAmount,
+        status: newOrderData.status,
+        deliveryAddress: newOrderData.deliveryAddress,
+        phoneNumber: newOrderData.phoneNumber
+      };
+
+      setOrders(prev => [formattedNewOrder, ...prev]);
+      clearCart();
+      return formattedNewOrder;
+    } catch (error) {
+      throw error;
+    }
   };
 
-  const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-  const cartTotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-
-  const isAdding = (productId) => addingItems.has(productId);
+  const cartTotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
+  const cartCount = cart.reduce((count, item) => count + item.quantity, 0);
 
   return (
-    <CartContext.Provider value={{ 
-      cart: cartItems, 
-      addToCart, 
-      removeFromCart, 
-      clearCart, 
-      cartCount, 
-      cartTotal, 
-      orders, 
+    <CartContext.Provider value={{
+      cart,
+      addToCart,
+      removeFromCart,
+      updateQuantity,
+      clearCart,
+      cartTotal,
+      cartCount,
+      orders,
       placeOrder,
       loading,
       isAdding

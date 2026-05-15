@@ -10,7 +10,7 @@ const Home = () => {
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [categories, setCategories] = useState(['All', 'Burgers', 'Pizza', 'Asian', 'Salad', 'Dessert', 'Drinks']);
+  const [categories, setCategories] = useState(['All', 'Breakfast', 'Swallow', 'Rice Dishes', 'Snacks', 'Drinks']);
   
   const heroRef = useRef(null);
   const menuRef = useRef(null);
@@ -76,7 +76,7 @@ const Home = () => {
 
       <main className="mt-4">
         {/* Full-width Hero Section wrapper */}
-        <div className="px-4 max-w-7xl mx-auto">
+        <div className="px-4 max-w-7xl mx-auto relative">
           <div ref={heroRef} className="relative h-[300px] sm:h-[400px] md:h-[500px] mb-8 rounded-[2rem] md:rounded-[3rem] overflow-hidden bg-orange-600 flex items-center justify-center shadow-2xl">
             <motion.div style={{ y: y1, opacity }} className="absolute inset-0 z-0">
               <img 
@@ -117,7 +117,7 @@ const Home = () => {
 
         {/* Full-width Marquee after Hero */}
         <Marquee 
-          text="Flash Sale: 50% OFF on all Burgers! • Order Now and Get Free Delivery • Limited Time Offer" 
+          text="Flash Sale: 50% OFF on all Meals! • Order Now and Get Free Delivery • Limited Time Offer" 
           className="mb-8 sm:mb-12 shadow-lg shadow-orange-100" 
         />
 

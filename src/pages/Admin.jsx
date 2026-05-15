@@ -10,9 +10,20 @@ const Admin = () => {
   const [orders, setOrders] = useState([]);
   const [users, setUsers] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [adminStats, setAdminStats] = useState({
+    totalRevenue: 0,
+    totalOrders: 0,
+    totalFoods: 0,
+    totalUsers: 0
+  });
   const [loading, setLoading] = useState(true);
+  const [tabLoading, setTabLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [updatingOrderId, setUpdatingOrderId] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingFood, setEditingFood] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     price: '',
@@ -23,6 +34,39 @@ const Admin = () => {
     calories: 0,
     time: '15-20 min'
   });
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const uploadFormData = new FormData();
+    uploadFormData.append('image', file);
+
+    setIsUploading(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/upload`, {
+        method: 'POST',
+        headers: {
+          'x-user-id': user?.id || user?._id,
+          'x-user-role': user?.role
+        },
+        body: uploadFormData
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setFormData(prev => ({ ...prev, imageUrl: `${import.meta.env.VITE_API_BASE_URL}${data.imageUrl}` }));
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to upload image');
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      alert('An error occurred during image upload');
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const handleOpenModal = (food = null) => {
     if (food) {
@@ -55,6 +99,7 @@ const Admin = () => {
 
   const handleSaveFood = async (e) => {
     e.preventDefault();
+    setIsSaving(true);
     try {
       const headers = {
         'Content-Type': 'application/json',
@@ -81,6 +126,8 @@ const Admin = () => {
         } else {
           setFoods([savedFood, ...foods]);
         }
+        // Update stats
+        setAdminStats(prev => ({ ...prev, totalFoods: prev.totalFoods + (editingFood ? 0 : 1) }));
         setIsModalOpen(false);
       } else {
         const error = await response.json();
@@ -88,11 +135,13 @@ const Admin = () => {
       }
     } catch (error) {
       console.error('Error saving food:', error);
+    } finally {
+      setIsSaving(false);
     }
   };
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchInitialData = async () => {
       setLoading(true);
       try {
         const headers = {
@@ -100,23 +149,16 @@ const Admin = () => {
           'x-user-role': user?.role
         };
 
-        const [foodsRes, ordersRes, usersRes, catsRes] = await Promise.all([
-          fetch(`${import.meta.env.VITE_API_BASE_URL}/api/foods`),
-          fetch(`${import.meta.env.VITE_API_BASE_URL}/api/orders`, { headers }),
-          fetch(`${import.meta.env.VITE_API_BASE_URL}/api/users`, { headers }),
+        const [statsRes, catsRes] = await Promise.all([
+          fetch(`${import.meta.env.VITE_API_BASE_URL}/api/admin/stats`, { headers }),
           fetch(`${import.meta.env.VITE_API_BASE_URL}/api/categories`)
         ]);
 
-        const [foodsData, ordersData, usersData, catsData] = await Promise.all([
-          foodsRes.json(),
-          ordersRes.json(),
-          usersRes.json(),
-          catsRes.json()
-        ]);
+        const statsData = await statsRes.json();
+        const catsData = await catsRes.json();
 
-        setFoods(foodsData);
-        setOrders(ordersData);
-        setUsers(usersData);
+        setAdminStats(statsData.stats);
+        setOrders(statsData.recentOrders);
         setCategories(catsData);
       } catch (error) {
         console.error('Error fetching admin data:', error);
@@ -126,25 +168,59 @@ const Admin = () => {
     };
 
     if (isAuthenticated && user?.role === 'admin') {
-      fetchData();
+      fetchInitialData();
     }
   }, [isAuthenticated, user]);
+
+  useEffect(() => {
+    const fetchTabData = async () => {
+      if (activeTab === 'dashboard' || !isAuthenticated || user?.role !== 'admin') return;
+      
+      setTabLoading(true);
+      try {
+        const headers = {
+          'x-user-id': user?.id || user?._id,
+          'x-user-role': user?.role
+        };
+
+        let endpoint = '';
+        if (activeTab === 'products') endpoint = 'foods';
+        if (activeTab === 'orders') endpoint = 'orders';
+        if (activeTab === 'users') endpoint = 'users';
+
+        if (endpoint) {
+          const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/${endpoint}`, { headers });
+          const data = await res.json();
+          if (activeTab === 'products') setFoods(data);
+          if (activeTab === 'orders') setOrders(data);
+          if (activeTab === 'users') setUsers(data);
+        }
+      } catch (error) {
+        console.error(`Error fetching ${activeTab} data:`, error);
+      } finally {
+        setTabLoading(false);
+      }
+    };
+
+    fetchTabData();
+  }, [activeTab, isAuthenticated, user]);
 
   const stats = [
     { 
       label: 'Total Revenue', 
-      value: `$${orders.reduce((acc, curr) => acc + curr.totalAmount, 0).toFixed(2)}`, 
+      value: `$${adminStats.totalRevenue.toFixed(2)}`, 
       icon: LayoutDashboard, 
       color: 'bg-blue-500' 
     },
-    { label: 'Orders', value: orders.length.toString(), icon: ShoppingBag, color: 'bg-orange-500' },
-    { label: 'Products', value: foods.length.toString(), icon: Package, color: 'bg-green-500' },
-    { label: 'Customers', value: users.length.toString(), icon: Users, color: 'bg-purple-500' },
+    { label: 'Orders', value: adminStats.totalOrders.toString(), icon: ShoppingBag, color: 'bg-orange-500' },
+    { label: 'Products', value: adminStats.totalFoods.toString(), icon: Package, color: 'bg-green-500' },
+    { label: 'Customers', value: adminStats.totalUsers.toString(), icon: Users, color: 'bg-purple-500' },
   ];
 
   const handleDeleteFood = async (id) => {
     if (!window.confirm('Are you sure you want to delete this product?')) return;
     
+    setDeletingId(id);
     try {
       const headers = {
         'x-user-id': user?.id || user?._id,
@@ -163,6 +239,30 @@ const Admin = () => {
       }
     } catch (error) {
       console.error('Error deleting food:', error);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleUpdateOrderStatus = async (orderId, newStatus) => {
+    setUpdatingOrderId(orderId);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/orders/${orderId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user?.id || user?._id,
+          'x-user-role': user?.role
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (response.ok) {
+        setOrders(orders.map(o => o._id === orderId ? { ...o, status: newStatus } : o));
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+    } finally {
+      setUpdatingOrderId(null);
     }
   };
 
@@ -174,7 +274,7 @@ const Admin = () => {
         <div className="fixed inset-0 bg-white/50 backdrop-blur-sm z-[150] flex items-center justify-center">
           <div className="flex flex-col items-center space-y-4">
             <Loader2 className="w-12 h-12 text-orange-600 animate-spin" />
-            <p className="font-bold text-stone-600">Syncing dashboard...</p>
+            <p className="font-bold text-stone-600">Initializing Workspace...</p>
           </div>
         </div>
       )}
@@ -207,7 +307,14 @@ const Admin = () => {
 
           {/* Main Content */}
           <main className="flex-1 min-w-0">
-            {activeTab === 'dashboard' && (
+            {tabLoading && (
+              <div className="flex flex-col items-center justify-center py-20 bg-white/80 backdrop-blur-sm rounded-2xl border border-stone-100 mb-8 z-10">
+                <Loader2 className="w-10 h-10 text-orange-600 animate-spin mb-4" />
+                <p className="font-bold text-stone-400">Updating Workspace...</p>
+              </div>
+            )}
+
+            {!tabLoading && activeTab === 'dashboard' && (
               <div className="space-y-6 sm:space-y-8">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {stats.map((stat, idx) => (
@@ -297,10 +404,11 @@ const Admin = () => {
                           <Edit size={16} />
                         </button>
                         <button 
+                          disabled={deletingId === product._id}
                           onClick={() => handleDeleteFood(product._id)}
-                          className="p-2 text-red-600 bg-red-50 rounded-lg active:scale-90"
+                          className="p-2 text-red-600 bg-red-50 rounded-lg active:scale-90 disabled:opacity-50"
                         >
-                          <Trash2 size={16} />
+                          {deletingId === product._id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
                         </button>
                       </div>
                     </div>
@@ -337,10 +445,11 @@ const Admin = () => {
                                 <Edit size={18} />
                               </button>
                               <button 
+                                disabled={deletingId === product._id}
                                 onClick={() => handleDeleteFood(product._id)}
-                                className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                                className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50"
                               >
-                                <Trash2 size={18} />
+                                {deletingId === product._id ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
                               </button>
                             </div>
                           </td>
@@ -371,36 +480,22 @@ const Admin = () => {
                         </div>
                       </div>
                       <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t border-stone-100">
-                        <select 
-                          value={order.status}
-                          onChange={async (e) => {
-                            const newStatus = e.target.value;
-                            try {
-                              const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/orders/${order._id}/status`, {
-                                method: 'PATCH',
-                                headers: {
-                                  'Content-Type': 'application/json',
-                                  'x-user-id': user?.id || user?._id,
-                                  'x-user-role': user?.role
-                                },
-                                body: JSON.stringify({ status: newStatus })
-                              });
-                              if (response.ok) {
-                                setOrders(orders.map(o => o._id === order._id ? { ...o, status: newStatus } : o));
-                              }
-                            } catch (error) {
-                              console.error('Error updating status:', error);
-                            }
-                          }}
-                          className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold outline-none border-none shadow-sm ${
-                            order.status === 'delivered' ? 'bg-green-100 text-green-700' : 
-                            order.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
-                          }`}
-                        >
-                          {["pending", "confirmed", "preparing", "out_for_delivery", "delivered", "cancelled"].map(s => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
-                        </select>
+                        <div className="flex-1 relative">
+                          <select 
+                            disabled={updatingOrderId === order._id}
+                            value={order.status}
+                            onChange={(e) => handleUpdateOrderStatus(order._id, e.target.value)}
+                            className={`w-full px-3 py-2 rounded-lg text-xs font-bold outline-none border-none shadow-sm disabled:opacity-50 ${
+                              order.status === 'delivered' ? 'bg-green-100 text-green-700' : 
+                              order.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
+                            }`}
+                          >
+                            {["pending", "confirmed", "preparing", "out_for_delivery", "delivered", "cancelled"].map(s => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
+                          {updatingOrderId === order._id && <Loader2 size={12} className="absolute right-2 top-1/2 -translate-y-1/2 animate-spin text-stone-400" />}
+                        </div>
                         <button className="px-4 py-2 bg-white border border-stone-200 text-stone-600 text-xs font-bold rounded-lg active:bg-stone-50">Details</button>
                       </div>
                     </div>
@@ -423,36 +518,22 @@ const Admin = () => {
                         <tr key={order._id} className="hover:bg-stone-50 transition-colors">
                           <td className="py-4 font-bold text-stone-700">#{order._id.substring(18)}</td>
                           <td className="py-4">
-                            <select 
-                              value={order.status}
-                              onChange={async (e) => {
-                                const newStatus = e.target.value;
-                                try {
-                                  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/orders/${order._id}/status`, {
-                                    method: 'PATCH',
-                                    headers: {
-                                      'Content-Type': 'application/json',
-                                      'x-user-id': user?.id || user?._id,
-                                      'x-user-role': user?.role
-                                    },
-                                    body: JSON.stringify({ status: newStatus })
-                                  });
-                                  if (response.ok) {
-                                    setOrders(orders.map(o => o._id === order._id ? { ...o, status: newStatus } : o));
-                                  }
-                                } catch (error) {
-                                  console.error('Error updating status:', error);
-                                }
-                              }}
-                              className={`px-3 py-1 rounded-full text-xs font-bold outline-none border-none ${
-                                order.status === 'delivered' ? 'bg-green-100 text-green-700' : 
-                                order.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
-                              }`}
-                            >
-                              {["pending", "confirmed", "preparing", "out_for_delivery", "delivered", "cancelled"].map(s => (
-                                <option key={s} value={s}>{s}</option>
-                              ))}
-                            </select>
+                            <div className="flex items-center space-x-2">
+                              <select 
+                                disabled={updatingOrderId === order._id}
+                                value={order.status}
+                                onChange={(e) => handleUpdateOrderStatus(order._id, e.target.value)}
+                                className={`px-3 py-1 rounded-full text-xs font-bold outline-none border-none disabled:opacity-50 ${
+                                  order.status === 'delivered' ? 'bg-green-100 text-green-700' : 
+                                  order.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
+                                }`}
+                              >
+                                {["pending", "confirmed", "preparing", "out_for_delivery", "delivered", "cancelled"].map(s => (
+                                  <option key={s} value={s}>{s}</option>
+                                ))}
+                              </select>
+                              {updatingOrderId === order._id && <Loader2 size={14} className="animate-spin text-orange-600" />}
+                            </div>
                           </td>
                           <td className="py-4 font-black text-stone-800">${order.totalAmount.toFixed(2)}</td>
                           <td className="py-4 text-right">
@@ -578,14 +659,40 @@ const Admin = () => {
                   ))}
                 </select>
               </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Image URL</label>
-                <input 
-                  type="text" 
-                  value={formData.imageUrl}
-                  onChange={(e) => setFormData({...formData, imageUrl: e.target.value})}
-                  className="w-full bg-stone-50 border border-stone-100 px-4 py-3 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700"
-                />
+              <div className="md:col-span-2 space-y-2">
+                <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Product Image</label>
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <div className="relative w-full sm:w-32 h-32 bg-stone-50 border-2 border-dashed border-stone-200 rounded-2xl overflow-hidden flex items-center justify-center group">
+                    {formData.imageUrl ? (
+                      <img src={formData.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <Plus className="text-stone-300 group-hover:text-orange-500 transition-colors" size={32} />
+                    )}
+                    {isUploading && (
+                      <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center">
+                        <Loader2 className="text-orange-600 animate-spin" size={24} />
+                      </div>
+                    )}
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      disabled={isUploading}
+                      className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                    />
+                  </div>
+                  <div className="flex-1 w-full space-y-2">
+                    <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">Upload from device or enter URL</p>
+                    <input 
+                      type="text" 
+                      placeholder="https://example.com/image.jpg"
+                      value={formData.imageUrl}
+                      onChange={(e) => setFormData({...formData, imageUrl: e.target.value})}
+                      className="w-full bg-stone-50 border border-stone-100 px-4 py-3 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700 text-sm"
+                    />
+                    <p className="text-[10px] text-stone-400">Supported formats: JPG, PNG, WEBP (Max 5MB)</p>
+                  </div>
+                </div>
               </div>
               <div className="md:col-span-2 space-y-2">
                 <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Description</label>
@@ -598,16 +705,19 @@ const Admin = () => {
               <div className="flex space-x-4 md:col-span-2 pt-4">
                 <button 
                   type="button"
+                  disabled={isSaving}
                   onClick={() => setIsModalOpen(false)}
-                  className="flex-1 px-6 py-4 rounded-xl font-bold text-stone-500 bg-stone-100 hover:bg-stone-200 transition-all uppercase tracking-widest text-sm"
+                  className="flex-1 px-6 py-4 rounded-xl font-bold text-stone-500 bg-stone-100 hover:bg-stone-200 transition-all uppercase tracking-widest text-sm disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button 
                   type="submit"
-                  className="flex-1 px-6 py-4 rounded-xl font-bold text-white bg-orange-600 hover:bg-orange-700 transition-all shadow-lg shadow-orange-100 uppercase tracking-widest text-sm"
+                  disabled={isSaving}
+                  className="flex-1 px-6 py-4 rounded-xl font-bold text-white bg-orange-600 hover:bg-orange-700 transition-all shadow-lg shadow-orange-100 uppercase tracking-widest text-sm flex items-center justify-center space-x-2 disabled:opacity-70"
                 >
-                  {editingFood ? 'Update Product' : 'Create Product'}
+                  {isSaving && <Loader2 size={18} className="animate-spin" />}
+                  <span>{editingFood ? (isSaving ? 'Updating...' : 'Update Product') : (isSaving ? 'Creating...' : 'Create Product')}</span>
                 </button>
               </div>
             </form>
