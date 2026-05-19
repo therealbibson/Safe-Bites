@@ -55,7 +55,7 @@ const Orders = () => {
                     <span className="px-2 sm:px-3 py-1 bg-orange-100 text-orange-600 text-[10px] sm:text-xs font-bold rounded-full uppercase tracking-wider mb-1 sm:mb-2">
                       {order.status}
                     </span>
-                    <span className="text-xl sm:text-2xl font-black text-stone-800">${order.total.toFixed(2)}</span>
+                    <span className="text-xl sm:text-2xl font-black text-stone-800">₦{order.total.toFixed(2)}</span>
                   </div>
                 </div>
 
@@ -66,7 +66,7 @@ const Orders = () => {
                         <img src={item.imageUrl} className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl object-cover" />
                         <span className="font-bold text-stone-700 text-sm sm:text-base">{item.name}</span>
                       </div>
-                      <span className="text-stone-400 font-medium text-xs sm:text-sm">${item.price.toFixed(2)}</span>
+                      <span className="text-stone-400 font-medium text-xs sm:text-sm">₦{item.price.toFixed(2)}</span>
                     </div>
                   ))}
                 </div>

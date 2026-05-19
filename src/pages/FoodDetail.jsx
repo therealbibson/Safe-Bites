@@ -95,7 +95,7 @@ const FoodDetail = () => {
                 <span>{item.category}</span>
               </div>
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-orange-600">${item.price.toFixed(2)}</div>
+            <div className="text-2xl sm:text-3xl font-black text-orange-600">₦{item.price.toFixed(2)}</div>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-10">

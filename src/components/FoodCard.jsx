@@ -29,7 +29,7 @@ const FoodCard = ({ item }) => {
           transition={{ duration: 0.6 }}
         />
         <div className="absolute top-3 sm:top-4 right-3 sm:right-4 bg-white/90 backdrop-blur-md px-3 sm:px-4 py-1 sm:py-1.5 rounded-full shadow-lg border border-white/20">
-          <span className="text-orange-600 font-black text-xs sm:text-sm">${item.price.toFixed(2)}</span>
+          <span className="text-orange-600 font-black text-xs sm:text-sm">₦{item.price.toFixed(2)}</span>
         </div>
         <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>
