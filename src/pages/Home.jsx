@@ -63,10 +63,16 @@ const Home = () => {
   };
 
   const filteredItems = useMemo(() => {
-    return foods.filter(item => {
+    const result = foods.filter(item => {
       const matchesCategory = activeCategory === 'All' || item.category === activeCategory;
       const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
+    });
+
+    // Sort by availability: available items first, then out of stock
+    return result.sort((a, b) => {
+      if (a.isAvailable === b.isAvailable) return 0;
+      return a.isAvailable ? -1 : 1;
     });
   }, [activeCategory, searchQuery, foods]);
 

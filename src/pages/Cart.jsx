@@ -11,7 +11,10 @@ const Cart = () => {
   const { cart, removeFromCart, updateQuantity, cartTotal, loading } = useCart();
   const { isAuthenticated } = useAuth();
 
+  const hasOutOfStockItems = cart.some(item => item.isAvailable === false);
+
   const handleProceedToCheckout = () => {
+    if (hasOutOfStockItems) return;
     if (isAuthenticated) {
       navigate('/checkout');
     } else {
@@ -94,9 +97,14 @@ const Cart = () => {
               </div>
               <button 
                 onClick={handleProceedToCheckout}
-                className="block text-center w-full bg-orange-500 text-white py-4 sm:py-6 rounded-[1.5rem] sm:rounded-[2rem] font-black text-lg sm:text-xl shadow-xl shadow-orange-200 hover:bg-orange-600 transition-all uppercase tracking-widest"
+                disabled={hasOutOfStockItems}
+                className={`block text-center w-full py-4 sm:py-6 rounded-[1.5rem] sm:rounded-[2rem] font-black text-lg sm:text-xl shadow-xl transition-all uppercase tracking-widest ${
+                  hasOutOfStockItems 
+                    ? 'bg-stone-200 text-stone-400 cursor-not-allowed shadow-none' 
+                    : 'bg-orange-500 text-white shadow-orange-200 hover:bg-orange-600'
+                }`}
               >
-                Proceed to Checkout
+                {hasOutOfStockItems ? 'Items Out of Stock' : 'Proceed to Checkout'}
               </button>
             </div>
           </div>

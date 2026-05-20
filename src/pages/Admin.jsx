@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Package, Users, ShoppingBag, Settings, Plus, Edit, Trash2, Loader2, CheckCircle2, Clock, Truck, XCircle } from 'lucide-react';
+import { LayoutDashboard, Package, Users, ShoppingBag, Settings, Plus, Edit, Trash2, Loader2, CheckCircle2, Clock, Truck, XCircle, Search } from 'lucide-react';
 
 const Admin = () => {
   const { user, isAuthenticated } = useAuth();
@@ -9,6 +9,8 @@ const Admin = () => {
   const [foods, setFoods] = useState([]);
   const [orders, setOrders] = useState([]);
   const [users, setUsers] = useState([]);
+  const [searchUserQuery, setSearchUserQuery] = useState('');
+  const [searchFoodQuery, setSearchFoodQuery] = useState('');
   const [categories, setCategories] = useState([]);
   const [adminStats, setAdminStats] = useState({
     totalRevenue: 0,
@@ -21,7 +23,9 @@ const Admin = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
+  const [updatingUserId, setUpdatingUserId] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
   const [editingFood, setEditingFood] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [formData, setFormData] = useState({
@@ -31,6 +35,7 @@ const Admin = () => {
     imageUrl: '',
     description: '',
     stock: 0,
+    isAvailable: true,
     calories: 0,
     time: '15-20 min'
   });
@@ -78,6 +83,7 @@ const Admin = () => {
         imageUrl: food.imageUrl || '',
         description: food.description || '',
         stock: food.stock || 0,
+        isAvailable: food.isAvailable !== undefined ? food.isAvailable : true,
         calories: food.calories || 0,
         time: food.time || '15-20 min'
       });
@@ -90,6 +96,7 @@ const Admin = () => {
         imageUrl: '',
         description: '',
         stock: 0,
+        isAvailable: true,
         calories: 0,
         time: '15-20 min'
       });
@@ -266,6 +273,38 @@ const Admin = () => {
     }
   };
 
+  const handleUpdateUserRole = async (targetUserId, newRole) => {
+    if (targetUserId === (user.id || user._id) && newRole !== 'admin') {
+      alert("You cannot demote yourself from admin status.");
+      return;
+    }
+
+    setUpdatingUserId(targetUserId);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/users/${targetUserId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user?.id || user?._id,
+          'x-user-role': user?.role
+        },
+        body: JSON.stringify({ role: newRole })
+      });
+
+      if (response.ok) {
+        setUsers(users.map(u => u._id === targetUserId ? { ...u, role: newRole } : u));
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to update user role');
+      }
+    } catch (error) {
+      console.error('Error updating user role:', error);
+      alert('An error occurred while updating user role');
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-stone-50 pt-16">
       <Navbar />
@@ -342,7 +381,8 @@ const Admin = () => {
                     <table className="w-full text-left">
                       <thead>
                         <tr className="border-b border-stone-100">
-                          <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Order ID</th>
+                          <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Customer / Order</th>
+                          <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Date & Time</th>
                           <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Status</th>
                           <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Amount</th>
                         </tr>
@@ -350,16 +390,27 @@ const Admin = () => {
                       <tbody className="divide-y divide-stone-50">
                         {orders.slice(0, 5).map((order) => (
                           <tr key={order._id} className="hover:bg-stone-50 transition-colors">
-                            <td className="py-4 font-bold text-stone-700">{order._id.substring(0, 8)}...</td>
                             <td className="py-4">
-                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                              <div className="flex flex-col">
+                                <span className="font-bold text-stone-700 text-sm">{order.userId?.name || 'Guest User'}</span>
+                                <span className="text-[10px] text-stone-400 font-bold uppercase tracking-tight">#{order._id.substring(18)}</span>
+                              </div>
+                            </td>
+                            <td className="py-4">
+                              <div className="flex flex-col text-stone-600">
+                                <span className="text-[10px] font-bold">{new Date(order.createdAt).toLocaleDateString()}</span>
+                                <span className="text-[10px] text-stone-400">{new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                              </div>
+                            </td>
+                            <td className="py-4">
+                              <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                                 order.status === 'delivered' ? 'bg-green-100 text-green-700' : 
                                 order.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
                               }`}>
                                 {order.status}
                               </span>
                             </td>
-                            <td className="py-4 font-bold text-stone-800">${order.totalAmount.toFixed(2)}</td>
+                            <td className="py-4 font-black text-stone-800 text-sm">${order.totalAmount.toFixed(2)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -372,10 +423,22 @@ const Admin = () => {
             {activeTab === 'products' && (
               <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-4 sm:p-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-                  <h3 className="text-xl font-black text-stone-800 uppercase tracking-tight">Product Management</h3>
+                  <div className="flex flex-col space-y-2">
+                    <h3 className="text-xl font-black text-stone-800 uppercase tracking-tight">Product Management</h3>
+                    <div className="relative w-full sm:w-64">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
+                      <input 
+                        type="text"
+                        placeholder="Search products..."
+                        value={searchFoodQuery}
+                        onChange={(e) => setSearchFoodQuery(e.target.value)}
+                        className="w-full bg-stone-50 border border-stone-100 pl-10 pr-4 py-2 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700 text-sm"
+                      />
+                    </div>
+                  </div>
                   <button 
                     onClick={() => handleOpenModal()}
-                    className="bg-orange-600 text-white px-5 py-3 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 hover:bg-orange-700 transition-all shadow-md active:scale-95"
+                    className="bg-orange-600 text-white px-5 py-3 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 hover:bg-orange-700 transition-all shadow-md active:scale-95 self-start sm:self-center"
                   >
                     <Plus size={18} />
                     <span>Add New Product</span>
@@ -384,13 +447,21 @@ const Admin = () => {
                 
                 {/* Mobile: Card View | Desktop: Table View */}
                 <div className="block sm:hidden space-y-3">
-                  {foods.map((product) => (
+                  {foods
+                    .filter(product => 
+                      product.name.toLowerCase().includes(searchFoodQuery.toLowerCase()) ||
+                      product.category.toLowerCase().includes(searchFoodQuery.toLowerCase())
+                    )
+                    .map((product) => (
                     <div key={product._id} className="border border-stone-100 rounded-xl p-3 flex items-center space-x-3 bg-stone-50/50">
                       <div className="w-14 h-14 bg-stone-100 rounded-lg overflow-hidden flex-shrink-0">
                         <img src={product.imageUrl || `https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=100&h=100&fit=crop`} alt={product.name} className="w-full h-full object-cover" />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-bold text-stone-800 truncate text-sm">{product.name}</h4>
+                          <div className="flex-1 min-w-0">
+                        <div className="flex items-center space-x-2">
+                          <h4 className="font-bold text-stone-800 truncate text-sm">{product.name}</h4>
+                          {!product.isAvailable && <span className="text-[8px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-black uppercase">Out</span>}
+                        </div>
                         <div className="flex items-center justify-between mt-1">
                           <span className="text-[10px] bg-stone-100 text-stone-500 px-2 py-0.5 rounded-full font-bold uppercase">{product.category}</span>
                           <span className="font-black text-orange-600 text-sm">${product.price.toFixed(2)}</span>
@@ -426,13 +497,25 @@ const Admin = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-50">
-                      {foods.map((product) => (
+                      {foods
+                        .filter(product => 
+                          product.name.toLowerCase().includes(searchFoodQuery.toLowerCase()) ||
+                          product.category.toLowerCase().includes(searchFoodQuery.toLowerCase())
+                        )
+                        .map((product) => (
                         <tr key={product._id} className="hover:bg-stone-50 transition-colors">
                           <td className="py-4 flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-stone-100 rounded-lg overflow-hidden">
+                            <div className="w-10 h-10 bg-stone-100 rounded-lg overflow-hidden flex-shrink-0">
                               <img src={product.imageUrl || `https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=50&h=50&fit=crop`} alt={product.name} className="w-full h-full object-cover" />
                             </div>
-                            <span className="font-bold text-stone-700">{product.name}</span>
+                            <div className="flex flex-col">
+                              <span className="font-bold text-stone-700">{product.name}</span>
+                              <span className={`text-[8px] font-black uppercase tracking-widest w-fit px-1.5 py-0.5 rounded ${
+                                product.isAvailable ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+                              }`}>
+                                {product.isAvailable ? 'In Stock' : 'Out of Stock'}
+                              </span>
+                            </div>
                           </td>
                           <td className="py-4 text-stone-600 text-sm font-medium">{product.category}</td>
                           <td className="py-4 font-black text-stone-800">${product.price.toFixed(2)}</td>
@@ -496,7 +579,12 @@ const Admin = () => {
                           </select>
                           {updatingOrderId === order._id && <Loader2 size={12} className="absolute right-2 top-1/2 -translate-y-1/2 animate-spin text-stone-400" />}
                         </div>
-                        <button className="px-4 py-2 bg-white border border-stone-200 text-stone-600 text-xs font-bold rounded-lg active:bg-stone-50">Details</button>
+                        <button 
+                          onClick={() => setSelectedOrder(order)}
+                          className="px-4 py-2 bg-white border border-stone-200 text-stone-600 text-xs font-bold rounded-lg active:bg-stone-50"
+                        >
+                          Details
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -507,7 +595,8 @@ const Admin = () => {
                   <table className="w-full text-left">
                     <thead>
                       <tr className="border-b border-stone-100">
-                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">ID</th>
+                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Order / Customer</th>
+                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Date & Time</th>
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Status</th>
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Amount</th>
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs text-right">Actions</th>
@@ -516,14 +605,25 @@ const Admin = () => {
                     <tbody className="divide-y divide-stone-50">
                       {orders.map((order) => (
                         <tr key={order._id} className="hover:bg-stone-50 transition-colors">
-                          <td className="py-4 font-bold text-stone-700">#{order._id.substring(18)}</td>
+                          <td className="py-4">
+                            <div className="flex flex-col">
+                              <span className="font-black text-stone-800 text-sm">{order.userId?.name || 'Guest User'}</span>
+                              <span className="text-[10px] text-stone-400 font-bold uppercase tracking-tight">#{order._id.substring(18)}</span>
+                            </div>
+                          </td>
+                          <td className="py-4">
+                            <div className="flex flex-col text-stone-600">
+                              <span className="text-xs font-bold">{new Date(order.createdAt).toLocaleDateString()}</span>
+                              <span className="text-[10px] text-stone-400">{new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                          </td>
                           <td className="py-4">
                             <div className="flex items-center space-x-2">
                               <select 
                                 disabled={updatingOrderId === order._id}
                                 value={order.status}
                                 onChange={(e) => handleUpdateOrderStatus(order._id, e.target.value)}
-                                className={`px-3 py-1 rounded-full text-xs font-bold outline-none border-none disabled:opacity-50 ${
+                                className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider outline-none border-none disabled:opacity-50 ${
                                   order.status === 'delivered' ? 'bg-green-100 text-green-700' : 
                                   order.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
                                 }`}
@@ -537,7 +637,12 @@ const Admin = () => {
                           </td>
                           <td className="py-4 font-black text-stone-800">${order.totalAmount.toFixed(2)}</td>
                           <td className="py-4 text-right">
-                            <button className="text-orange-600 font-bold text-sm hover:underline">Details</button>
+                            <button 
+                              onClick={() => setSelectedOrder(order)}
+                              className="text-orange-600 font-bold text-sm hover:underline"
+                            >
+                              Details
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -549,13 +654,30 @@ const Admin = () => {
 
             {activeTab === 'users' && (
               <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-4 sm:p-6">
-                <h3 className="text-xl font-black text-stone-800 uppercase tracking-tight mb-6">User Management</h3>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                  <h3 className="text-xl font-black text-stone-800 uppercase tracking-tight">User Management</h3>
+                  <div className="relative w-full sm:w-64">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
+                    <input 
+                      type="text"
+                      placeholder="Search users..."
+                      value={searchUserQuery}
+                      onChange={(e) => setSearchUserQuery(e.target.value)}
+                      className="w-full bg-stone-50 border border-stone-100 pl-10 pr-4 py-2 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700 text-sm"
+                    />
+                  </div>
+                </div>
                 
                 {/* Mobile: Card View */}
                 <div className="block sm:hidden space-y-3">
-                  {users.map((u) => (
+                  {users
+                    .filter(u => 
+                      u.name.toLowerCase().includes(searchUserQuery.toLowerCase()) || 
+                      u.email.toLowerCase().includes(searchUserQuery.toLowerCase())
+                    )
+                    .map((u) => (
                     <div key={u._id} className="border border-stone-100 rounded-xl p-4 bg-stone-50/50">
-                      <div className="flex items-center space-x-3 mb-3">
+                      <div className="flex items-center space-x-3 mb-3 pb-3 border-b border-stone-100">
                         <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 font-bold">
                           {u.name.charAt(0).toUpperCase()}
                         </div>
@@ -564,10 +686,43 @@ const Admin = () => {
                           <p className="text-xs text-stone-400 truncate">{u.email}</p>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-stone-100">
-                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                          {u.role}
-                        </span>
+                      
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Joined</p>
+                          <p className="text-[10px] font-bold text-stone-600">
+                            {new Date(u.createdAt).toLocaleDateString()}<br/>
+                            {new Date(u.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Last Login</p>
+                          <p className="text-[10px] font-bold text-stone-600">
+                            {u.lastLogin ? (
+                              <>
+                                {new Date(u.lastLogin).toLocaleDateString()}<br/>
+                                {new Date(u.lastLogin).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </>
+                            ) : 'Never'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3 border-t border-stone-100">
+                        <div className="flex items-center space-x-2">
+                          <select 
+                            disabled={updatingUserId === u._id}
+                            value={u.role}
+                            onChange={(e) => handleUpdateUserRole(u._id, e.target.value)}
+                            className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider outline-none border-none disabled:opacity-50 ${
+                              u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                            }`}
+                          >
+                            <option value="user">User</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                          {updatingUserId === u._id && <Loader2 size={12} className="animate-spin text-orange-600" />}
+                        </div>
                         <button className="text-stone-400 hover:text-orange-600 transition-colors">
                           <Settings size={16} />
                         </button>
@@ -581,20 +736,64 @@ const Admin = () => {
                   <table className="w-full text-left">
                     <thead>
                       <tr className="border-b border-stone-100">
-                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Name</th>
-                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Email</th>
+                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">User</th>
+                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Joined</th>
+                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Last Login</th>
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs text-right">Role</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-50">
-                      {users.map((u) => (
+                      {users
+                        .filter(u => 
+                          u.name.toLowerCase().includes(searchUserQuery.toLowerCase()) || 
+                          u.email.toLowerCase().includes(searchUserQuery.toLowerCase())
+                        )
+                        .map((u) => (
                         <tr key={u._id} className="hover:bg-stone-50 transition-colors">
-                          <td className="py-4 font-bold text-stone-700">{u.name}</td>
-                          <td className="py-4 text-stone-600 text-sm">{u.email}</td>
+                          <td className="py-4">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-xs">
+                                {u.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="font-bold text-stone-700 text-sm">{u.name}</span>
+                                <span className="text-xs text-stone-400">{u.email}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-4">
+                            <div className="flex flex-col text-stone-500">
+                              <span className="text-xs font-bold">{new Date(u.createdAt).toLocaleDateString()}</span>
+                              <span className="text-[10px] font-medium">{new Date(u.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                          </td>
+                          <td className="py-4">
+                            <div className="flex flex-col text-stone-500">
+                              {u.lastLogin ? (
+                                <>
+                                  <span className="text-xs font-bold">{new Date(u.lastLogin).toLocaleDateString()}</span>
+                                  <span className="text-[10px] font-medium">{new Date(u.lastLogin).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                </>
+                              ) : (
+                                <span className="text-xs font-bold text-stone-300 italic">Never</span>
+                              )}
+                            </div>
+                          </td>
                           <td className="py-4 text-right">
-                            <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                              {u.role}
-                            </span>
+                            <div className="flex items-center justify-end space-x-2">
+                              {updatingUserId === u._id && <Loader2 size={14} className="animate-spin text-orange-600" />}
+                              <select 
+                                disabled={updatingUserId === u._id}
+                                value={u.role}
+                                onChange={(e) => handleUpdateUserRole(u._id, e.target.value)}
+                                className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider outline-none border-none disabled:opacity-50 ${
+                                  u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                                }`}
+                              >
+                                <option value="user">User</option>
+                                <option value="admin">Admin</option>
+                              </select>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -659,6 +858,22 @@ const Admin = () => {
                   ))}
                 </select>
               </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Stock Status</label>
+                <div 
+                  onClick={() => setFormData({...formData, isAvailable: !formData.isAvailable})}
+                  className={`flex items-center p-3 rounded-xl border cursor-pointer transition-all h-[50px] ${
+                    formData.isAvailable ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'
+                  }`}
+                >
+                  <div className={`w-10 h-5 rounded-full relative transition-colors ${formData.isAvailable ? 'bg-green-500' : 'bg-red-500'}`}>
+                    <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${formData.isAvailable ? 'left-6' : 'left-1'}`} />
+                  </div>
+                  <span className={`ml-3 text-sm font-bold uppercase tracking-wider ${formData.isAvailable ? 'text-green-600' : 'text-red-600'}`}>
+                    {formData.isAvailable ? 'In Stock' : 'Out of Stock'}
+                  </span>
+                </div>
+              </div>
               <div className="md:col-span-2 space-y-2">
                 <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Product Image</label>
                 <div className="flex flex-col sm:flex-row items-center gap-4">
@@ -721,6 +936,106 @@ const Admin = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Order Details Modal */}
+      {selectedOrder && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 shadow-2xl relative">
+            <button 
+              onClick={() => setSelectedOrder(null)}
+              className="absolute top-6 right-6 p-2 text-stone-400 hover:text-stone-600 transition-colors"
+            >
+              <XCircle size={24} />
+            </button>
+            
+            <div className="mb-8">
+              <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest block mb-1">Order Details</span>
+              <h3 className="text-2xl font-black text-stone-800 tracking-tight uppercase">Order #{selectedOrder._id.substring(18)}</h3>
+              <div className="flex items-center text-stone-400 text-sm mt-1 font-medium space-x-3">
+                <div className="flex items-center">
+                  <Clock size={14} className="mr-1" />
+                  {new Date(selectedOrder.createdAt).toLocaleDateString()} • {new Date(selectedOrder.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </div>
+                <span>•</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                  selectedOrder.status === 'delivered' ? 'bg-green-100 text-green-700' : 
+                  selectedOrder.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
+                }`}>
+                  {selectedOrder.status}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <h4 className="text-xs font-black text-stone-400 uppercase tracking-widest mb-4">Ordered Items</h4>
+                <div className="space-y-3 bg-stone-50 rounded-2xl p-4 sm:p-6">
+                  {selectedOrder.items.map((item, i) => (
+                    <div key={i} className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-white rounded-lg overflow-hidden flex-shrink-0">
+                          <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-stone-700 text-sm">{item.name}</p>
+                          <p className="text-[10px] text-stone-400 font-bold uppercase">Qty: {item.quantity}</p>
+                        </div>
+                      </div>
+                      <span className="text-stone-700 font-black text-sm">${(item.price * item.quantity).toFixed(2)}</span>
+                    </div>
+                  ))}
+                  <div className="pt-4 border-t border-stone-200 flex justify-between items-center">
+                    <span className="font-black text-stone-800 uppercase text-xs tracking-widest">Total Amount</span>
+                    <span className="text-xl font-black text-orange-600">${selectedOrder.totalAmount.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                <div>
+                  <h4 className="text-xs font-black text-stone-400 uppercase tracking-widest mb-3">Customer Profile</h4>
+                  <div className="flex items-center space-x-3 bg-stone-50 p-3 rounded-xl border border-stone-100">
+                    <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold overflow-hidden border-2 border-white shadow-sm">
+                      {selectedOrder.userId?.avatar ? (
+                        <img src={`${import.meta.env.VITE_API_BASE_URL}${selectedOrder.userId.avatar}`} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        selectedOrder.userId?.name?.charAt(0).toUpperCase() || <User size={18} />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-stone-700 truncate">{selectedOrder.userId?.name || 'Guest User'}</p>
+                      <p className="text-[10px] text-stone-400 font-medium truncate">{selectedOrder.userId?.email || 'No email provided'}</p>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-stone-400 uppercase tracking-widest mb-3">Contact Details</h4>
+                  <div className="flex items-center space-x-2 text-stone-600 p-3 bg-stone-50 rounded-xl border border-stone-100">
+                    <Users size={16} className="text-stone-400 flex-shrink-0" />
+                    <p className="text-sm font-bold tracking-tight">{selectedOrder.phoneNumber}</p>
+                  </div>
+                </div>
+                <div className="md:col-span-2">
+                  <h4 className="text-xs font-black text-stone-400 uppercase tracking-widest mb-3">Delivery Information</h4>
+                  <div className="flex items-start space-x-2 text-stone-600 p-3 bg-stone-50 rounded-xl border border-stone-100">
+                    <Truck size={16} className="mt-0.5 text-stone-400 flex-shrink-0" />
+                    <p className="text-sm font-medium leading-relaxed">{selectedOrder.deliveryAddress}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-10 pt-6 border-t border-stone-100 flex justify-end">
+              <button 
+                onClick={() => setSelectedOrder(null)}
+                className="px-8 py-3 bg-stone-100 text-stone-500 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-stone-200 transition-all"
+              >
+                Close Details
+              </button>
+            </div>
           </div>
         </div>
       )}

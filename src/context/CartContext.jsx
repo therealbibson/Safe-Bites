@@ -80,7 +80,9 @@ export const CartProvider = ({ children }) => {
         name: product.name,
         price: product.price,
         imageUrl: product.imageUrl || product.image,
-        quantity: 1
+        quantity: 1,
+        stock: product.stock,
+        isAvailable: product.isAvailable
       }];
     });
 

@@ -1,17 +1,84 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { User, Settings, Bell, Shield, LogOut, ChevronRight, MapPin, CreditCard, ShoppingBag } from 'lucide-react';
+import { User, Settings, Bell, Shield, LogOut, ChevronRight, MapPin, CreditCard, ShoppingBag, Camera, Loader2, Star } from 'lucide-react';
 import Navbar from '../components/Navbar';
 
 const UserPage = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [stats, setStats] = useState({ orderCount: 0, reviewCount: 0 });
+
+  React.useEffect(() => {
+    const fetchStats = async () => {
+      if (!user?._id && !user?.id) return;
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/users/${user._id || user.id}/stats`);
+        if (response.ok) {
+          const data = await response.json();
+          setStats(data);
+        }
+      } catch (error) {
+        console.error('Error fetching user stats:', error);
+      }
+    };
+    fetchStats();
+  }, [user]);
 
   const handleLogout = () => {
     logout();
     navigate('/home');
+  };
+
+  const handleAvatarClick = () => {
+    fileInputRef.current.click();
+  };
+
+  const handleFileChange = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      // 1. Upload the image
+      const uploadRes = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${user.token || ''}` // Assuming token might be needed if requireAuth is on
+        },
+        body: formData,
+      });
+
+      if (!uploadRes.ok) throw new Error('Failed to upload image');
+      const { imageUrl } = await uploadRes.json();
+
+      // 2. Update user profile with the new avatar URL
+      const updateRes = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/users/${user._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.token || ''}`
+        },
+        body: JSON.stringify({ avatar: imageUrl }),
+      });
+
+      if (!updateRes.ok) throw new Error('Failed to update profile');
+      const updatedUser = await updateRes.json();
+
+      // 3. Update local state
+      updateUser({ avatar: updatedUser.avatar });
+    } catch (error) {
+      console.error('Error updating avatar:', error);
+      alert('Failed to update avatar. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const menuItems = [
@@ -34,15 +101,48 @@ const UserPage = () => {
           className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-8 shadow-sm border border-stone-100 mb-6 sm:mb-8"
         >
           <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left space-y-4 sm:space-y-0 sm:space-x-6">
-            <div className="bg-orange-100 p-4 sm:p-6 rounded-full text-orange-600">
-              <User size={32} className="sm:w-12 sm:h-12" />
+            <div className="relative group">
+              <div 
+                onClick={handleAvatarClick}
+                className="w-24 h-24 sm:w-32 sm:h-32 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 overflow-hidden cursor-pointer border-4 border-white shadow-md relative"
+              >
+                {isUploading ? (
+                  <Loader2 size={32} className="animate-spin" />
+                ) : user?.avatar ? (
+                  <img 
+                    src={`${import.meta.env.VITE_API_BASE_URL}${user.avatar}`} 
+                    alt="Profile" 
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <User size={32} className="sm:w-12 sm:h-12" />
+                )}
+                
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                  <Camera size={24} />
+                </div>
+              </div>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileChange} 
+                className="hidden" 
+                accept="image/*"
+              />
             </div>
-            <div>
+            <div className="pt-2">
               <h1 className="text-2xl sm:text-3xl font-black text-stone-800 tracking-tight">{user?.name || 'SafeBite User'}</h1>
               <p className="text-stone-500 font-medium text-sm sm:text-base">{user?.email}</p>
-              <span className="inline-block mt-2 px-3 py-1 bg-green-100 text-green-700 text-[10px] sm:text-xs font-bold rounded-full uppercase tracking-wider">
-                Gold Member
-              </span>
+              <div className="flex items-center space-x-2 mt-4">
+                <div className="flex items-center space-x-2 bg-orange-600 px-4 py-2 rounded-xl shadow-lg shadow-orange-100">
+                  <ShoppingBag size={14} className="text-white" />
+                  <span className="text-white font-black text-sm">{stats.orderCount}</span>
+                </div>
+                <div className="flex items-center space-x-2 bg-amber-500 px-4 py-2 rounded-xl shadow-lg shadow-amber-100">
+                  <Star size={14} className="text-white" />
+                  <span className="text-white font-black text-sm">{stats.reviewCount}</span>
+                </div>
+              </div>
             </div>
           </div>
         </motion.div>

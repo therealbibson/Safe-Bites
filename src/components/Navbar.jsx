@@ -45,9 +45,19 @@ const Navbar = () => {
           {isAuthenticated ? (
             <Link 
               to="/user"
-              className="flex items-center justify-center sm:space-x-2 bg-stone-100 p-2 sm:px-4 sm:py-2 rounded-full border border-stone-200 hover:bg-orange-50 hover:border-orange-200 transition-all group"
+              className="flex items-center justify-center sm:space-x-2 bg-stone-100 p-1 sm:px-3 sm:py-1.5 rounded-full border border-stone-200 hover:bg-orange-50 hover:border-orange-200 transition-all group"
             >
-              <User size={18} className="text-stone-500 group-hover:text-orange-600" />
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden flex items-center justify-center bg-stone-200">
+                {user?.avatar ? (
+                  <img 
+                    src={`${import.meta.env.VITE_API_BASE_URL}${user.avatar}`} 
+                    alt="Avatar" 
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <User size={18} className="text-stone-500 group-hover:text-orange-600" />
+                )}
+              </div>
               <span className="hidden sm:inline text-sm font-bold text-stone-700 group-hover:text-orange-600 truncate max-w-[100px]">
                 {user.name || user.email.split('@')[0]}
               </span>
