@@ -3,17 +3,20 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ChevronLeft, Star, Clock, Flame, ShieldCheck, Plus, Minus, Loader2 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useSettings } from '../context/SettingsContext';
 import Navbar from '../components/Navbar';
 
 const FoodDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addToCart, isAdding } = useCart();
+  const { settings } = useSettings();
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
 
   const isItemAdding = item ? isAdding(item.id) : false;
+  const currency = settings?.currency || '₦';
 
   useEffect(() => {
     const fetchFoodDetail = async () => {
@@ -95,7 +98,7 @@ const FoodDetail = () => {
                 <span>{item.category}</span>
               </div>
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-orange-600">₦{item.price.toFixed(2)}</div>
+            <div className="text-2xl sm:text-3xl font-black text-orange-600">{currency}{item.price.toFixed(2)}</div>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-10">

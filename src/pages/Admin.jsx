@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../context/AuthContext';
+import { useSettings } from '../context/SettingsContext';
 import { 
   LayoutDashboard, Package, Users, ShoppingBag, Settings, Plus, Edit, 
   Trash2, Loader2, CheckCircle2, Clock, Truck, XCircle, Search, User, Phone, MapPin, CreditCard
@@ -8,6 +9,7 @@ import {
 
 const Admin = () => {
   const { user, isAuthenticated } = useAuth();
+  const { refreshSettings } = useSettings();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [foods, setFoods] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -15,6 +17,17 @@ const Admin = () => {
   const [searchUserQuery, setSearchUserQuery] = useState('');
   const [searchFoodQuery, setSearchFoodQuery] = useState('');
   const [categories, setCategories] = useState([]);
+  const [settings, setSettings] = useState({
+    storeName: 'SafeBite',
+    contactEmail: 'support@safebite.com',
+    contactPhone: '+234 800 SAFEBITE',
+    currency: '₦',
+    deliveryFee: 2.0,
+    minimumOrder: 0,
+    isOpen: true,
+    openingHours: '08:00 AM - 10:00 PM',
+    maintenanceMode: false
+  });
   const [adminStats, setAdminStats] = useState({
     totalRevenue: 0,
     totalOrders: 0,
@@ -157,17 +170,20 @@ const Admin = () => {
           'x-user-role': user?.role
         };
 
-        const [statsRes, catsRes] = await Promise.all([
+        const [statsRes, catsRes, settingsRes] = await Promise.all([
           fetch(`${import.meta.env.VITE_API_BASE_URL}/api/admin/stats`, { headers }),
-          fetch(`${import.meta.env.VITE_API_BASE_URL}/api/categories`)
+          fetch(`${import.meta.env.VITE_API_BASE_URL}/api/categories`),
+          fetch(`${import.meta.env.VITE_API_BASE_URL}/api/settings?t=${Date.now()}`)
         ]);
 
         const statsData = await statsRes.json();
         const catsData = await catsRes.json();
+        const settingsData = await settingsRes.json();
 
         setAdminStats(statsData.stats);
-        setOrders(statsData.recentOrders);
+        setOrders(statsData.recentOrders || []);
         setCategories(catsData);
+        if (settingsData && !settingsData.error) setSettings(settingsData);
       } catch (error) {
         console.error('Error fetching admin data:', error);
       } finally {
@@ -177,12 +193,14 @@ const Admin = () => {
 
     if (isAuthenticated && user?.role === 'admin') {
       fetchInitialData();
+    } else if (isAuthenticated && user?.role !== 'admin') {
+      setLoading(false);
     }
   }, [isAuthenticated, user]);
 
   useEffect(() => {
     const fetchTabData = async () => {
-      if (activeTab === 'dashboard' || !isAuthenticated || user?.role !== 'admin') return;
+      if (activeTab === 'dashboard' || activeTab === 'settings' || !isAuthenticated || user?.role !== 'admin') return;
       
       setTabLoading(true);
       try {
@@ -214,10 +232,10 @@ const Admin = () => {
   }, [activeTab, isAuthenticated, user]);
 
   const stats = [
-    { label: 'Total Revenue', value: `$${adminStats.totalRevenue.toFixed(2)}`, icon: LayoutDashboard, color: 'bg-blue-500' },
-    { label: 'Orders', value: adminStats.totalOrders.toString(), icon: ShoppingBag, color: 'bg-orange-500' },
-    { label: 'Products', value: adminStats.totalFoods.toString(), icon: Package, color: 'bg-green-500' },
-    { label: 'Customers', value: adminStats.totalUsers.toString(), icon: Users, color: 'bg-purple-500' },
+    { label: 'Total Revenue', value: `${settings?.currency || '₦'}${(adminStats?.totalRevenue || 0).toFixed(2)}`, icon: LayoutDashboard, color: 'bg-blue-500' },
+    { label: 'Orders', value: (adminStats?.totalOrders || 0).toString(), icon: ShoppingBag, color: 'bg-orange-500' },
+    { label: 'Products', value: (adminStats?.totalFoods || 0).toString(), icon: Package, color: 'bg-green-500' },
+    { label: 'Customers', value: (adminStats?.totalUsers || 0).toString(), icon: Users, color: 'bg-purple-500' },
   ];
 
   const handleDeleteFood = async (id) => {
@@ -291,6 +309,49 @@ const Admin = () => {
     }
   };
 
+  const handleUpdateSettings = async (e) => {
+    e.preventDefault();
+    setIsSaving(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/settings`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user?.id || user?._id,
+          'x-user-role': user?.role
+        },
+        body: JSON.stringify(settings)
+      });
+      if (response.ok) {
+        const updatedSettings = await response.json();
+        setSettings(updatedSettings);
+        refreshSettings(); // Sync global settings context
+        alert('Settings updated successfully!');
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to update settings');
+      }
+    } catch (error) {
+      console.error('Error updating settings:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (isAuthenticated && user?.role !== 'admin') {
+    return (
+      <div className="min-h-screen bg-stone-50 pt-16 flex items-center justify-center">
+        <Navbar />
+        <div className="text-center">
+          <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-black text-stone-800 uppercase">Access Denied</h2>
+          <p className="text-stone-500 font-bold mt-2">You do not have permission to view this page.</p>
+          <button onClick={() => window.location.href = '/home'} className="mt-6 bg-orange-600 text-white px-6 py-3 rounded-xl font-bold uppercase tracking-widest text-sm">Return Home</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-stone-50 pt-16">
       <Navbar />
@@ -350,7 +411,109 @@ const Admin = () => {
                     </div>
                   ))}
                 </div>
-                {/* Recent Orders section omitted for brevity but keeps original logic */}
+                
+                <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-4 sm:p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-xl font-black text-stone-800 uppercase tracking-tight">Recent Orders</h3>
+                    <button onClick={() => setActiveTab('orders')} className="text-orange-600 font-bold text-sm hover:underline">View All</button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="border-b border-stone-100">
+                          <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Customer</th>
+                          <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Status</th>
+                          <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Amount</th>
+                          <th className="pb-4 font-bold text-stone-400 uppercase text-xs text-right">Date</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-stone-50">
+                        {orders.slice(0, 5).map((order) => (
+                          <tr key={order._id} className="hover:bg-stone-50 transition-colors">
+                            <td className="py-4">
+                              <div className="flex flex-col">
+                                <span className="font-bold text-stone-700 text-sm">{order.userId?.name || 'Guest User'}</span>
+                                <span className="text-[10px] text-stone-400 font-bold uppercase">#{order._id.substring(18)}</span>
+                              </div>
+                            </td>
+                            <td className="py-4">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                order.status === 'delivered' ? 'bg-green-100 text-green-700' : 
+                                order.status === 'cancelled' ? 'bg-red-100 text-red-700' : 
+                                'bg-orange-100 text-orange-700'
+                              }`}>
+                                {order.status}
+                              </span>
+                            </td>
+                            <td className="py-4 font-black text-stone-800 text-sm">${order.totalAmount.toFixed(2)}</td>
+                            <td className="py-4 text-right text-xs font-bold text-stone-500">
+                              {new Date(order.createdAt).toLocaleString()}
+                            </td>
+                          </tr>
+                        ))}
+                        {orders.length === 0 && (
+                          <tr>
+                            <td colSpan="4" className="py-8 text-center text-stone-400 font-bold">No recent orders</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'settings' && (
+              <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-4 sm:p-6">
+                <h3 className="text-xl font-black text-stone-800 uppercase tracking-tight mb-6">Store Settings</h3>
+                <form onSubmit={handleUpdateSettings} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Store Name</label>
+                    <input type="text" value={settings.storeName} onChange={(e) => setSettings({...settings, storeName: e.target.value})} className="w-full bg-stone-50 border border-stone-100 px-4 py-3 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Contact Email</label>
+                    <input type="email" value={settings.contactEmail} onChange={(e) => setSettings({...settings, contactEmail: e.target.value})} className="w-full bg-stone-50 border border-stone-100 px-4 py-3 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Contact Phone</label>
+                    <input type="text" value={settings.contactPhone} onChange={(e) => setSettings({...settings, contactPhone: e.target.value})} className="w-full bg-stone-50 border border-stone-100 px-4 py-3 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Currency Symbol</label>
+                    <input type="text" value={settings.currency} onChange={(e) => setSettings({...settings, currency: e.target.value})} className="w-full bg-stone-50 border border-stone-100 px-4 py-3 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Delivery Fee</label>
+                    <input type="number" step="0.01" value={settings.deliveryFee} onChange={(e) => setSettings({...settings, deliveryFee: e.target.value})} className="w-full bg-stone-50 border border-stone-100 px-4 py-3 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Opening Hours</label>
+                    <input type="text" value={settings.openingHours} onChange={(e) => setSettings({...settings, openingHours: e.target.value})} className="w-full bg-stone-50 border border-stone-100 px-4 py-3 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700" />
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <div onClick={() => setSettings({...settings, isOpen: !settings.isOpen})} className={`flex items-center p-3 rounded-xl border cursor-pointer transition-all flex-1 h-[50px] ${settings.isOpen ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
+                      <div className={`w-10 h-5 rounded-full relative transition-colors ${settings.isOpen ? 'bg-green-500' : 'bg-red-500'}`}>
+                        <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.isOpen ? 'left-6' : 'left-1'}`} />
+                      </div>
+                      <span className={`ml-3 text-sm font-bold uppercase tracking-wider ${settings.isOpen ? 'text-green-600' : 'text-red-600'}`}>{settings.isOpen ? 'Store Open' : 'Store Closed'}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <div onClick={() => setSettings({...settings, maintenanceMode: !settings.maintenanceMode})} className={`flex items-center p-3 rounded-xl border cursor-pointer transition-all flex-1 h-[50px] ${!settings.maintenanceMode ? 'bg-blue-50 border-blue-100' : 'bg-orange-50 border-orange-100'}`}>
+                      <div className={`w-10 h-5 rounded-full relative transition-colors ${settings.maintenanceMode ? 'bg-orange-500' : 'bg-blue-500'}`}>
+                        <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.maintenanceMode ? 'left-6' : 'left-1'}`} />
+                      </div>
+                      <span className={`ml-3 text-sm font-bold uppercase tracking-wider ${settings.maintenanceMode ? 'text-orange-600' : 'text-blue-600'}`}>{settings.maintenanceMode ? 'Maintenance ON' : 'Normal Mode'}</span>
+                    </div>
+                  </div>
+                  <div className="md:col-span-2 pt-4">
+                    <button type="submit" disabled={isSaving} className="w-full sm:w-auto px-8 py-4 rounded-xl font-bold text-white bg-orange-600 uppercase tracking-widest text-sm flex items-center justify-center space-x-2">
+                      {isSaving && <Loader2 size={18} className="animate-spin" />}
+                      <span>Save Settings</span>
+                    </button>
+                  </div>
+                </form>
               </div>
             )}
 
@@ -431,7 +594,7 @@ const Admin = () => {
                             </div>
                           </td>
                           <td className="py-4 text-stone-600 text-sm font-medium">{product.category}</td>
-                          <td className="py-4 font-black text-stone-800">${product.price.toFixed(2)}</td>
+                          <td className="py-4 font-black text-stone-800">{settings?.currency || '₦'}{product.price.toFixed(2)}</td>
                           <td className="py-4 text-right">
                             <div className="flex items-center justify-end space-x-2">
                               <button onClick={() => handleOpenModal(product)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"><Edit size={18} /></button>
@@ -472,7 +635,7 @@ const Admin = () => {
                             </div>
                           </td>
                           <td className="py-4 text-xs font-bold text-stone-500">
-                            {new Date(order.createdAt).toLocaleDateString()}
+                            {new Date(order.createdAt).toLocaleString()}
                           </td>
                           <td className="py-4">
                             <div className="flex items-center space-x-2">
@@ -508,6 +671,7 @@ const Admin = () => {
                       <tr className="border-b border-stone-100">
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs">User</th>
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Joined</th>
+                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Last Login</th>
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs text-right">Role</th>
                       </tr>
                     </thead>
@@ -521,6 +685,9 @@ const Admin = () => {
                             </div>
                           </td>
                           <td className="py-4 text-xs font-bold text-stone-500">{new Date(u.createdAt).toLocaleDateString()}</td>
+                          <td className="py-4 text-xs font-bold text-stone-500">
+                            {u.lastLogin ? new Date(u.lastLogin).toLocaleString() : 'Never'}
+                          </td>
                           <td className="py-4 text-right">
                             <select disabled={updatingUserId === u._id} value={u.role} onChange={(e) => handleUpdateUserRole(u._id, e.target.value)} className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider outline-none border-none disabled:opacity-50 ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
                               <option value="user">User</option><option value="admin">Admin</option>
@@ -547,7 +714,7 @@ const Admin = () => {
                 <input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="w-full bg-stone-50 border border-stone-100 px-4 py-3 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700" required />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Price ($)</label>
+                <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Price ({settings?.currency || '₦'})</label>
                 <input type="number" step="0.01" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} className="w-full bg-stone-50 border border-stone-100 px-4 py-3 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700" required />
               </div>
               <div className="space-y-2">
@@ -597,7 +764,7 @@ const Admin = () => {
           <div className="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 shadow-2xl relative">
             <button onClick={() => setSelectedOrder(null)} className="absolute top-6 right-6 p-2 text-stone-400"><XCircle size={24} /></button>
             <div className="mb-8">
-              <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest block mb-1">Order Details</span>
+              <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest block mb-1">Order Details • {new Date(selectedOrder.createdAt).toLocaleString()}</span>
               <h3 className="text-2xl font-black text-stone-800 tracking-tight uppercase">Order #{selectedOrder._id.substring(18)}</h3>
             </div>
             <div className="space-y-6">
@@ -608,12 +775,12 @@ const Admin = () => {
                       <div className="w-10 h-10 bg-white rounded-lg overflow-hidden"><img src={item.imageUrl} alt="" className="w-full h-full object-cover" /></div>
                       <div><p className="font-bold text-stone-700 text-sm">{item.name}</p><p className="text-[10px] text-stone-400 font-bold uppercase">Qty: {item.quantity}</p></div>
                     </div>
-                    <span className="text-stone-700 font-black text-sm">${(item.price * item.quantity).toFixed(2)}</span>
+                    <span className="text-stone-700 font-black text-sm">{settings?.currency || '₦'}{(item.price * item.quantity).toFixed(2)}</span>
                   </div>
                 ))}
                 <div className="pt-4 border-t border-stone-200 mt-4 flex justify-between items-center">
                   <span className="font-black text-stone-800 uppercase text-xs">Total</span>
-                  <span className="text-xl font-black text-orange-600">${selectedOrder.totalAmount.toFixed(2)}</span>
+                  <span className="text-xl font-black text-orange-600">{settings?.currency || '₦'}{selectedOrder.totalAmount.toFixed(2)}</span>
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">

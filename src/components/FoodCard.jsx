@@ -3,13 +3,16 @@ import { motion } from 'framer-motion';
 import { Plus, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
+import { useSettings } from '../context/SettingsContext';
 
 const FoodCard = ({ item }) => {
   const { addToCart, isAdding } = useCart();
+  const { settings } = useSettings();
   const navigate = useNavigate();
 
   const isItemAdding = isAdding(item.id);
   const isOutOfStock = !item.isAvailable;
+  const currency = settings?.currency || '₦';
 
   return (
     <motion.div 
@@ -35,7 +38,7 @@ const FoodCard = ({ item }) => {
           </div>
         )}
         <div className="absolute top-3 sm:top-4 right-3 sm:right-4 bg-white/90 backdrop-blur-md px-3 sm:px-4 py-1 sm:py-1.5 rounded-full shadow-lg border border-white/20">
-          <span className="text-orange-600 font-black text-xs sm:text-sm">₦{item.price.toFixed(2)}</span>
+          <span className="text-orange-600 font-black text-xs sm:text-sm">{currency}{item.price.toFixed(2)}</span>
         </div>
         <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>

@@ -2,16 +2,19 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import { useSettings } from '../context/SettingsContext';
 import { ChevronLeft, Trash2, ShoppingBag, Plus, Minus } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { motion } from 'framer-motion';
 
 const Cart = () => {
   const navigate = useNavigate();
-  const { cart, removeFromCart, updateQuantity, cartTotal, loading } = useCart();
+  const { cart, removeFromCart, updateQuantity, cartTotal, deliveryFee, grandTotal, loading } = useCart();
   const { isAuthenticated } = useAuth();
+  const { settings } = useSettings();
 
   const hasOutOfStockItems = cart.some(item => item.isAvailable === false);
+  const currency = settings?.currency || '₦';
 
   const handleProceedToCheckout = () => {
     if (hasOutOfStockItems) return;
@@ -70,7 +73,7 @@ const Cart = () => {
                       <Plus size={14} className="sm:w-4 sm:h-4" />
                     </button>
                   </div>
-                  <p className="text-orange-600 font-black text-sm sm:text-base mt-1 sm:mt-2">₦{item.price.toFixed(2)}</p>
+                  <p className="text-orange-600 font-black text-sm sm:text-base mt-1 sm:mt-2">{currency}{item.price.toFixed(2)}</p>
                 </div>
                 <button 
                   onClick={() => removeFromCart(item.productId)}
@@ -84,16 +87,16 @@ const Cart = () => {
             <div className="mt-8 sm:mt-12 bg-white p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] shadow-sm border border-stone-100">
               <div className="flex justify-between mb-3 sm:mb-4 text-sm sm:text-base">
                 <span className="text-stone-500 font-bold">Subtotal</span>
-                <span className="font-black text-stone-800">₦{cartTotal.toFixed(2)}</span>
+                <span className="font-black text-stone-800">{currency}{cartTotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between mb-3 sm:mb-4 text-sm sm:text-base">
                 <span className="text-stone-500 font-bold">Delivery Fee</span>
-                <span className="font-black text-stone-800">₦2.00</span>
+                <span className="font-black text-stone-800">{currency}{deliveryFee.toFixed(2)}</span>
               </div>
               <div className="h-px bg-stone-100 my-4 sm:my-6"></div>
               <div className="flex justify-between items-center mb-8 sm:mb-10">
                 <span className="text-lg sm:text-xl font-black text-stone-800">Grand Total</span>
-                <span className="text-2xl sm:text-4xl font-black text-orange-600">₦{(cartTotal + 2).toFixed(2)}</span>
+                <span className="text-2xl sm:text-4xl font-black text-orange-600">{currency}{grandTotal.toFixed(2)}</span>
               </div>
               <button 
                 onClick={handleProceedToCheckout}

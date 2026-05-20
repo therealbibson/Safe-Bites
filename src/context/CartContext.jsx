@@ -1,10 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
+import { useSettings } from './SettingsContext';
 
 const CartContext = createContext();
 
 export const CartProvider = ({ children }) => {
   const { user, isAuthenticated } = useAuth();
+  const { settings } = useSettings();
   const [cart, setCart] = useState(() => {
     const savedCart = localStorage.getItem('safebite_cart');
     return savedCart ? JSON.parse(savedCart) : [];
@@ -116,6 +118,11 @@ export const CartProvider = ({ children }) => {
     }
 
     try {
+      // Use the latest grand total including delivery fee
+      const currentDeliveryFee = Number(settings?.deliveryFee || 0);
+      const currentCartTotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
+      const finalTotal = currentCartTotal + currentDeliveryFee;
+
       // Place order with items from local cart
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/orders`, {
         method: 'POST',
@@ -125,7 +132,8 @@ export const CartProvider = ({ children }) => {
         },
         body: JSON.stringify({
           ...orderDetails,
-          items: cart
+          items: cart,
+          totalAmount: finalTotal // Ensure backend gets the total including delivery fee
         })
       });
 
@@ -155,6 +163,8 @@ export const CartProvider = ({ children }) => {
 
   const cartTotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
   const cartCount = cart.reduce((count, item) => count + item.quantity, 0);
+  const deliveryFee = Number(settings?.deliveryFee || 0);
+  const grandTotal = cartTotal + deliveryFee;
 
   return (
     <CartContext.Provider value={{
@@ -165,6 +175,8 @@ export const CartProvider = ({ children }) => {
       clearCart,
       cartTotal,
       cartCount,
+      deliveryFee,
+      grandTotal,
       orders,
       placeOrder,
       loading,

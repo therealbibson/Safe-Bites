@@ -2,15 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import { useSettings } from '../context/SettingsContext';
 import { ChevronLeft, MapPin, CreditCard, ShoppingBag, Loader2 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 
 const Checkout = () => {
   const navigate = useNavigate();
-  const { cart, cartTotal, placeOrder } = useCart();
+  const { cart, cartTotal, deliveryFee, grandTotal, placeOrder } = useCart();
   const { isAuthenticated, user } = useAuth();
+  const { settings } = useSettings();
   const [isOrdered, setIsOrdered] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+
+  const currency = settings?.currency || '₦';
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -21,13 +25,19 @@ const Checkout = () => {
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
     if (!isAuthenticated || isPlacingOrder) return;
+
+    if (!settings.isOpen) {
+      alert(`Sorry, our store is currently closed. Opening hours: ${settings.openingHours}`);
+      return;
+    }
     
     setIsPlacingOrder(true);
     const formData = new FormData(e.target);
     const orderDetails = {
       deliveryAddress: `${formData.get('address')}, ${formData.get('city')}, ${formData.get('zip')}`,
       phoneNumber: formData.get('phone'),
-      paymentMethod: 'Cash on Delivery'
+      paymentMethod: 'Cash on Delivery',
+      totalAmount: grandTotal // Use centralized grand total
     };
     
     try {
@@ -73,6 +83,12 @@ const Checkout = () => {
           <h1 className="text-2xl sm:text-3xl font-black text-stone-800 tracking-tight uppercase">Checkout</h1>
         </div>
 
+        {!settings.isOpen && (
+          <div className="bg-red-50 border-2 border-red-100 p-4 rounded-2xl mb-6 text-red-600 font-bold text-center">
+            Store is currently CLOSED. Opening Hours: {settings.openingHours}
+          </div>
+        )}
+
         <form onSubmit={handlePlaceOrder}>
           <div className="space-y-4 sm:space-y-6">
             <section className="bg-white p-5 sm:p-8 rounded-[1.5rem] sm:rounded-[2.5rem] shadow-sm border border-stone-100">
@@ -98,7 +114,7 @@ const Checkout = () => {
               <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
                 <div className="flex-1 p-4 sm:p-6 border-2 border-orange-500 bg-orange-50 rounded-[1.5rem] sm:rounded-[2rem] flex flex-col items-center">
                   <div className="w-8 h-8 sm:w-12 sm:h-12 bg-orange-100 rounded-full flex items-center justify-center mb-2 sm:mb-3">
-                    <span className="font-black text-orange-600 text-sm sm:text-base">₦</span>
+                    <span className="font-black text-orange-600 text-sm sm:text-base">{currency}</span>
                   </div>
                   <span className="text-[10px] sm:text-sm font-black text-orange-600 uppercase tracking-wider text-center">Cash on Delivery</span>
                 </div>
@@ -114,21 +130,21 @@ const Checkout = () => {
             <section className="bg-white p-6 sm:p-8 rounded-[1.5rem] sm:rounded-[2.5rem] shadow-sm border border-stone-100">
               <div className="flex justify-between items-center py-2 sm:py-3 border-b border-stone-50">
                 <span className="text-stone-500 font-bold text-sm sm:text-base">{cart.length} items</span>
-                <span className="font-black text-stone-800 text-sm sm:text-base">₦{cartTotal.toFixed(2)}</span>
+                <span className="font-black text-stone-800 text-sm sm:text-base">{currency}{cartTotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center py-2 sm:py-3 border-b border-stone-50">
                 <span className="text-stone-500 font-bold text-sm sm:text-base">Delivery</span>
-                <span className="font-black text-stone-800 text-sm sm:text-base">₦2.00</span>
+                <span className="font-black text-stone-800 text-sm sm:text-base">{currency}{deliveryFee.toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center pt-4 sm:pt-6">
                 <span className="text-lg sm:text-xl font-black text-stone-800">Total Amount</span>
-                <span className="text-2xl sm:text-3xl font-black text-orange-600">₦{(cartTotal + 2).toFixed(2)}</span>
+                <span className="text-2xl sm:text-3xl font-black text-orange-600">{currency}{grandTotal.toFixed(2)}</span>
               </div>
             </section>
 
             <button 
               type="submit" 
-              disabled={isPlacingOrder}
+              disabled={isPlacingOrder || !settings.isOpen}
               className="w-full bg-orange-500 text-white py-4 sm:py-6 rounded-[1.5rem] sm:rounded-[2rem] font-black text-lg sm:text-xl shadow-xl shadow-orange-100 hover:bg-orange-600 transition-all uppercase tracking-widest flex items-center justify-center space-x-2 disabled:opacity-70 disabled:cursor-not-allowed"
             >
               {isPlacingOrder && <Loader2 className="w-6 h-6 animate-spin" />}
