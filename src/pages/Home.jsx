@@ -30,7 +30,11 @@ const Home = () => {
         const formattedFoods = foodsData.map(item => ({
           ...item,
           id: item._id,
-          image: item.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60',
+          image: item.imageUrl 
+            ? (item.imageUrl.startsWith('http') || item.imageUrl.startsWith('data:') 
+                ? item.imageUrl 
+                : `${import.meta.env.VITE_API_BASE_URL}${item.imageUrl}`)
+            : 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60',
           category: item.category || 'All'
         }));
         setFoods(formattedFoods);

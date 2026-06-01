@@ -29,7 +29,11 @@ const FoodDetail = () => {
         const formattedItem = {
           ...data,
           id: data._id,
-          image: data.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&auto=format&fit=crop&q=80',
+          image: data.imageUrl 
+            ? (data.imageUrl.startsWith('http') || data.imageUrl.startsWith('data:') 
+                ? data.imageUrl 
+                : `${import.meta.env.VITE_API_BASE_URL}${data.imageUrl}`)
+            : 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&auto=format&fit=crop&q=80',
           category: data.category || 'Food',
           calories: data.calories || 0,
           time: data.time || '15-20 min',

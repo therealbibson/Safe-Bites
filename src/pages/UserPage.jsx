@@ -1,16 +1,19 @@
 import React, { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
+import { useNotifications } from '../context/NotificationContext';
 import { useNavigate } from 'react-router-dom';
 import { 
   User, Settings, Bell, Shield, LogOut, ChevronRight, 
   MapPin, CreditCard, ShoppingBag, Camera, Loader2, Star,
-  ChevronLeft, Plus, Trash2, Edit2, CheckCircle2, Smartphone, Key
+  ChevronLeft, Plus, Trash2, Edit2, CheckCircle2, Smartphone, Key,
+  Check
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 
 const UserPage = () => {
   const { user, logout, updateUser } = useAuth();
+  const { notifications, markAsRead, markAllAsRead, loading: notificationsLoading } = useNotifications();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -129,7 +132,7 @@ const UserPage = () => {
                         <Loader2 size={32} className="animate-spin" />
                       ) : user?.avatar ? (
                         <img 
-                          src={`${import.meta.env.VITE_API_BASE_URL}${user.avatar}`} 
+                          src={user.avatar.startsWith('http') || user.avatar.startsWith('data:') ? user.avatar : `${import.meta.env.VITE_API_BASE_URL}${user.avatar}`} 
                           alt="Profile" 
                           className="w-full h-full object-cover"
                         />
@@ -198,15 +201,70 @@ const UserPage = () => {
           )}
 
           {activeSection !== 'menu' && (
-            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+            <motion.div key={activeSection} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
               {renderSectionHeader(menuItems.find(m => m.id === activeSection)?.label)}
-              <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[2.5rem] border border-dashed border-stone-200">
-                <div className="bg-stone-50 p-4 rounded-full mb-4 text-stone-300">
-                  {menuItems.find(m => m.id === activeSection)?.icon}
+              
+              {activeSection === 'notifications' ? (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center mb-6 px-2">
+                    <p className="text-stone-400 font-bold text-xs sm:text-sm">You have {notifications.filter(n => !n.isRead).length} unread notifications</p>
+                    <button 
+                      onClick={markAllAsRead}
+                      className="text-orange-600 font-black text-[10px] sm:text-xs uppercase tracking-widest hover:underline"
+                    >
+                      Mark all as read
+                    </button>
+                  </div>
+                  
+                  {notifications.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[2.5rem] border border-dashed border-stone-200">
+                      <Bell className="text-stone-200 mb-4" size={48} />
+                      <p className="text-stone-400 font-bold">No notifications yet</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {notifications.map((n) => (
+                        <div 
+                          key={n._id}
+                          onClick={() => !n.isRead && markAsRead(n._id)}
+                          className={`bg-white p-5 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] shadow-sm border border-stone-100 flex items-start space-x-4 relative overflow-hidden transition-all ${!n.isRead ? 'border-l-4 border-l-orange-500 bg-orange-50/10' : ''}`}
+                        >
+                          <div className={`p-2.5 sm:p-3 rounded-xl ${!n.isRead ? 'bg-orange-100 text-orange-600' : 'bg-stone-50 text-stone-400'}`}>
+                            <Bell size={18} className="sm:w-5 sm:h-5" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-start mb-1">
+                              <h3 className={`font-black text-sm sm:text-base truncate ${!n.isRead ? 'text-stone-800' : 'text-stone-500'}`}>{n.title}</h3>
+                              <span className="text-[9px] sm:text-[10px] text-stone-400 font-bold uppercase whitespace-nowrap ml-2">{new Date(n.createdAt).toLocaleDateString()}</span>
+                            </div>
+                            <p className="text-stone-500 text-xs sm:text-sm leading-relaxed">{n.message}</p>
+                            {n.title === "Order Delivered!" && (
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate('/orders');
+                                }}
+                                className="mt-3 flex items-center space-x-1.5 bg-orange-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-orange-700 transition-all shadow-md shadow-orange-100"
+                              >
+                                <Star size={10} fill="currentColor" />
+                                <span>Review Now</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <h3 className="text-lg font-bold text-stone-600 uppercase tracking-widest">Section under development</h3>
-                <p className="text-stone-400 text-sm">This module will be available in the next update.</p>
-              </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[2.5rem] border border-dashed border-stone-200">
+                  <div className="bg-stone-50 p-4 rounded-full mb-4 text-stone-300">
+                    {menuItems.find(m => m.id === activeSection)?.icon}
+                  </div>
+                  <h3 className="text-lg font-bold text-stone-600 uppercase tracking-widest">Section under development</h3>
+                  <p className="text-stone-400 text-sm">This module will be available in the next update.</p>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

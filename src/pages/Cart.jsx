@@ -55,7 +55,7 @@ const Cart = () => {
           <div className="space-y-3 sm:space-y-4">
             {cart.map((item) => (
               <div key={item.productId} className="bg-white p-3.5 sm:p-5 rounded-[1.5rem] sm:rounded-[2rem] flex items-center shadow-sm border border-stone-50 hover:shadow-md transition-all">
-                <img src={item.imageUrl} alt={item.name} className="w-16 h-16 sm:w-24 sm:h-24 object-cover rounded-xl sm:rounded-2xl mr-3 sm:mr-6" />
+                <img src={item.imageUrl?.startsWith('http') || item.imageUrl?.startsWith('data:') ? item.imageUrl : `${import.meta.env.VITE_API_BASE_URL}${item.imageUrl}`} alt={item.name} className="w-16 h-16 sm:w-24 sm:h-24 object-cover rounded-xl sm:rounded-2xl mr-3 sm:mr-6" />
                 <div className="flex-1 min-w-0">
                   <h3 className="font-black text-stone-800 text-sm sm:text-lg leading-tight truncate">{item.name}</h3>
                   <div className="flex items-center space-x-3 mt-1 sm:mt-2">

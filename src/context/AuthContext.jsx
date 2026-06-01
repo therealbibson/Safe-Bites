@@ -15,10 +15,16 @@ export const AuthProvider = ({ children }) => {
   const fetchSettings = useCallback(async () => {
     try {
       const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/settings`);
+      if (!res.ok) {
+        console.warn('Failed to fetch settings:', res.status);
+        setSettings(null);
+        return;
+      }
       const data = await res.json();
       setSettings(data);
     } catch (error) {
       console.error('Failed to fetch settings:', error);
+      setSettings(null);
     } finally {
       setSettingsLoading(false);
     }

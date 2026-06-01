@@ -22,6 +22,8 @@ export const SettingsProvider = ({ children }) => {
       if (response.ok) {
         const data = await response.json();
         setSettings(data);
+      } else {
+        console.warn('Failed to fetch settings:', response.status);
       }
     } catch (error) {
       console.error('Error fetching settings:', error);

@@ -12,6 +12,7 @@ export const CartProvider = ({ children }) => {
     return savedCart ? JSON.parse(savedCart) : [];
   });
   const [orders, setOrders] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
   const [loading, setLoading] = useState(false);
   const [addingItems, setAddingItems] = useState(new Set());
 
@@ -20,43 +21,65 @@ export const CartProvider = ({ children }) => {
   }, [cart]);
 
   // Fetch orders from backend when authenticated
-  useEffect(() => {
-    const fetchOrders = async () => {
-      if (!isAuthenticated) {
-        setOrders([]);
-        return;
-      }
+  const fetchOrders = async (page = 1, append = false) => {
+    if (!isAuthenticated || !user) {
+      console.log('[CartContext] Skip fetchOrders: Not authenticated or user missing');
+      setOrders([]);
+      return;
+    }
 
-      setLoading(true);
-      try {
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/orders`, {
-          headers: {
-            'x-user-id': user?.id || user?._id,
-            'x-user-role': user?.role
-          }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          // Map backend data to frontend format
-          const formattedOrders = data.map(order => ({
-            id: order._id,
-            date: order.createdAt,
-            items: order.items,
-            total: order.totalAmount,
-            status: order.status,
-            deliveryAddress: order.deliveryAddress,
-            phoneNumber: order.phoneNumber
-          }));
+    const uId = user.id || user._id;
+    console.log(`[CartContext] Fetching orders for user: ${uId}, page: ${page}`);
+    
+    setLoading(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/orders?page=${page}&limit=10`, {
+        headers: {
+          'x-user-id': uId,
+          'x-user-role': user?.role
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[CartContext] Received orders data:', data);
+        
+        if (!data.orders || !Array.isArray(data.orders)) {
+          console.error('[CartContext] Invalid data format received. Expected orders array.');
+          return;
+        }
+
+        // Map backend data to frontend format
+        const formattedOrders = data.orders.map(order => ({
+          id: order._id,
+          date: order.createdAt,
+          items: order.items,
+          total: order.totalAmount,
+          status: order.status,
+          deliveryAddress: order.deliveryAddress,
+          phoneNumber: order.phoneNumber
+        }));
+        
+        console.log(`[CartContext] Successfully formatted ${formattedOrders.length} orders`);
+
+        if (append) {
+          setOrders(prev => [...prev, ...formattedOrders]);
+        } else {
           setOrders(formattedOrders);
         }
-      } catch (error) {
-        console.error('Error fetching orders:', error);
-      } finally {
-        setLoading(false);
+        setPagination(data.pagination);
+      } else {
+        const errorData = await response.json();
+        console.error('[CartContext] Failed to fetch orders:', errorData.error);
       }
-    };
+    } catch (error) {
+      console.error('[CartContext] Error fetching orders:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    fetchOrders();
+  useEffect(() => {
+    fetchOrders(1, false);
   }, [isAuthenticated, user]);
 
   const isAdding = (productId) => addingItems.has(productId);
@@ -178,6 +201,8 @@ export const CartProvider = ({ children }) => {
       deliveryFee,
       grandTotal,
       orders,
+      pagination,
+      fetchOrders,
       placeOrder,
       loading,
       isAdding

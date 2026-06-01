@@ -47,7 +47,7 @@ const FoodCard = ({ item }) => {
           <h3 className="text-lg sm:text-xl font-bold text-stone-800 group-hover:text-orange-600 transition-colors truncate w-full">{item.name}</h3>
         </div>
         <p className="text-stone-500 text-xs sm:text-sm mb-4 sm:mb-6 line-clamp-2 leading-relaxed">
-          Savor the taste of our freshly prepared {item.name.toLowerCase()}, made with the finest local ingredients.
+          {item.description || `Savor the taste of our freshly prepared ${item.name.toLowerCase()}, made with the finest local ingredients.`}
         </p>
         <motion.button 
           disabled={isItemAdding || isOutOfStock}

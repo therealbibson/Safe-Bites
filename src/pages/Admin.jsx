@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 import { 
   LayoutDashboard, Package, Users, ShoppingBag, Settings, Plus, Edit, 
-  Trash2, Loader2, CheckCircle2, Clock, Truck, XCircle, Search, User, Phone, MapPin, CreditCard
+  Trash2, Loader2, CheckCircle2, Clock, Truck, XCircle, Search, User, Phone, MapPin, CreditCard, Star
 } from 'lucide-react';
 
 const Admin = () => {
@@ -14,6 +14,7 @@ const Admin = () => {
   const [foods, setFoods] = useState([]);
   const [orders, setOrders] = useState([]);
   const [users, setUsers] = useState([]);
+  const [reviews, setReviews] = useState([]);
   const [searchUserQuery, setSearchUserQuery] = useState('');
   const [searchFoodQuery, setSearchFoodQuery] = useState('');
   const [categories, setCategories] = useState([]);
@@ -76,7 +77,7 @@ const Admin = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setFormData(prev => ({ ...prev, imageUrl: `${import.meta.env.VITE_API_BASE_URL}${data.imageUrl}` }));
+        setFormData(prev => ({ ...prev, imageUrl: data.imageUrl }));
       } else {
         const error = await response.json();
         alert(error.error || 'Failed to upload image');
@@ -213,13 +214,15 @@ const Admin = () => {
         if (activeTab === 'products') endpoint = 'foods';
         if (activeTab === 'orders') endpoint = 'orders';
         if (activeTab === 'users') endpoint = 'users';
+        if (activeTab === 'reviews') endpoint = 'reviews';
 
         if (endpoint) {
           const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/${endpoint}`, { headers });
           const data = await res.json();
           if (activeTab === 'products') setFoods(data);
-          if (activeTab === 'orders') setOrders(data);
+          if (activeTab === 'orders') setOrders(data.orders || data);
           if (activeTab === 'users') setUsers(data);
+          if (activeTab === 'reviews') setReviews(data);
         }
       } catch (error) {
         console.error(`Error fetching ${activeTab} data:`, error);
@@ -372,6 +375,7 @@ const Admin = () => {
               { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
               { id: 'products', icon: Package, label: 'Products' },
               { id: 'orders', icon: ShoppingBag, label: 'Orders' },
+              { id: 'reviews', icon: Star, label: 'Reviews' },
               { id: 'users', icon: Users, label: 'Users' },
               { id: 'settings', icon: Settings, label: 'Settings' }
             ].map((tab) => (
@@ -431,9 +435,18 @@ const Admin = () => {
                         {orders.slice(0, 5).map((order) => (
                           <tr key={order._id} className="hover:bg-stone-50 transition-colors">
                             <td className="py-4">
-                              <div className="flex flex-col">
-                                <span className="font-bold text-stone-700 text-sm">{order.userId?.name || 'Guest User'}</span>
-                                <span className="text-[10px] text-stone-400 font-bold uppercase">#{order._id.substring(18)}</span>
+                              <div className="flex items-center space-x-3">
+                                <div className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-500 font-bold text-xs overflow-hidden">
+                                  {order.userId?.avatar ? (
+                                    <img src={order.userId.avatar.startsWith('http') || order.userId.avatar.startsWith('data:') ? order.userId.avatar : `${import.meta.env.VITE_API_BASE_URL}${order.userId.avatar}`} alt="" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <User size={14} />
+                                  )}
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className="font-bold text-stone-700 text-sm">{order.userId?.name || 'Guest User'}</span>
+                                  <span className="text-[10px] text-stone-400 font-bold uppercase">#{order._id.substring(18)}</span>
+                                </div>
                               </div>
                             </td>
                             <td className="py-4">
@@ -545,7 +558,7 @@ const Admin = () => {
                     .map((product) => (
                     <div key={product._id} className="border border-stone-100 rounded-xl p-3 flex items-center space-x-3 bg-stone-50/50">
                       <div className="w-14 h-14 bg-stone-100 rounded-lg overflow-hidden flex-shrink-0">
-                        <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                        <img src={product.imageUrl?.startsWith('http') || product.imageUrl?.startsWith('data:') ? product.imageUrl : `${import.meta.env.VITE_API_BASE_URL}${product.imageUrl}`} alt={product.name} className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2">
@@ -584,7 +597,7 @@ const Admin = () => {
                         <tr key={product._id} className="hover:bg-stone-50 transition-colors">
                           <td className="py-4 flex items-center space-x-3">
                             <div className="w-10 h-10 bg-stone-100 rounded-lg overflow-hidden flex-shrink-0">
-                              <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                              <img src={product.imageUrl?.startsWith('http') || product.imageUrl?.startsWith('data:') ? product.imageUrl : `${import.meta.env.VITE_API_BASE_URL}${product.imageUrl}`} alt={product.name} className="w-full h-full object-cover" />
                             </div>
                             <div className="flex flex-col">
                               <span className="font-bold text-stone-700">{product.name}</span>
@@ -680,7 +693,17 @@ const Admin = () => {
                         <tr key={u._id} className="hover:bg-stone-50 transition-colors">
                           <td className="py-4">
                             <div className="flex items-center space-x-3">
-                              <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-xs">{u.name.charAt(0).toUpperCase()}</div>
+                              <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-xs overflow-hidden">
+                                {u.avatar ? (
+                                  <img 
+                                    src={u.avatar.startsWith('data:') ? u.avatar : `${import.meta.env.VITE_API_BASE_URL}${u.avatar}`} 
+                                    alt="" 
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  u.name.charAt(0).toUpperCase()
+                                )}
+                              </div>
                               <div className="flex flex-col"><span className="font-bold text-stone-700 text-sm">{u.name}</span><span className="text-xs text-stone-400">{u.email}</span></div>
                             </div>
                           </td>
@@ -695,6 +718,73 @@ const Admin = () => {
                           </td>
                         </tr>
                       ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {activeTab === 'reviews' && (
+              <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-4 sm:p-6">
+                <h3 className="text-xl font-black text-stone-800 uppercase tracking-tight mb-6">User Reviews</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-stone-100">
+                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Customer</th>
+                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Order ID</th>
+                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Rating</th>
+                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Comment</th>
+                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs text-right">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-50">
+                      {reviews.map((review) => (
+                        <tr key={review._id} className="hover:bg-stone-50 transition-colors">
+                          <td className="py-4">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-500 font-bold text-xs overflow-hidden">
+                                {review.userId?.avatar ? (
+                                  <img src={review.userId.avatar.startsWith('http') || review.userId.avatar.startsWith('data:') ? review.userId.avatar : `${import.meta.env.VITE_API_BASE_URL}${review.userId.avatar}`} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  <User size={14} />
+                                )}
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="font-bold text-stone-700 text-sm">{review.userId?.name || 'Unknown User'}</span>
+                                <span className="text-[10px] text-stone-400">{review.userId?.email}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-4 text-xs font-bold text-stone-500">
+                            #{review.orderId?._id?.substring(18) || 'N/A'}
+                          </td>
+                          <td className="py-4">
+                            <div className="flex items-center space-x-1">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <Star 
+                                  key={s} 
+                                  size={12} 
+                                  fill={s <= review.rating ? '#EA580C' : 'transparent'} 
+                                  className={s <= review.rating ? 'text-orange-600' : 'text-stone-200'}
+                                />
+                              ))}
+                            </div>
+                          </td>
+                          <td className="py-4">
+                            <p className="text-sm text-stone-600 max-w-xs truncate" title={review.comment}>
+                              {review.comment || <span className="text-stone-300 italic">No comment</span>}
+                            </p>
+                          </td>
+                          <td className="py-4 text-right text-xs font-bold text-stone-500">
+                            {new Date(review.createdAt).toLocaleDateString()}
+                          </td>
+                        </tr>
+                      ))}
+                      {reviews.length === 0 && (
+                        <tr>
+                          <td colSpan="5" className="py-10 text-center text-stone-400 font-bold">No reviews found</td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -737,7 +827,7 @@ const Admin = () => {
                 <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Product Image</label>
                 <div className="flex flex-col sm:flex-row items-center gap-4">
                   <div className="relative w-full sm:w-32 h-32 bg-stone-50 border-2 border-dashed border-stone-200 rounded-2xl overflow-hidden flex items-center justify-center group">
-                    {formData.imageUrl ? <img src={formData.imageUrl} alt="Preview" className="w-full h-full object-cover" /> : <Plus className="text-stone-300 group-hover:text-orange-500 transition-colors" size={32} />}
+                    {formData.imageUrl ? <img src={formData.imageUrl?.startsWith('http') || formData.imageUrl?.startsWith('data:') ? formData.imageUrl : `${import.meta.env.VITE_API_BASE_URL}${formData.imageUrl}`} alt="Preview" className="w-full h-full object-cover" /> : <Plus className="text-stone-300 group-hover:text-orange-500 transition-colors" size={32} />}
                     <input type="file" accept="image/*" onChange={handleImageUpload} disabled={isUploading} className="absolute inset-0 opacity-0 cursor-pointer" />
                   </div>
                   <input type="text" placeholder="Or enter image URL" value={formData.imageUrl} onChange={(e) => setFormData({...formData, imageUrl: e.target.value})} className="flex-1 bg-stone-50 border border-stone-100 px-4 py-3 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700 text-sm" />
@@ -772,7 +862,7 @@ const Admin = () => {
                 {selectedOrder.items.map((item, i) => (
                   <div key={i} className="flex items-center justify-between mb-3 last:mb-0">
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-white rounded-lg overflow-hidden"><img src={item.imageUrl} alt="" className="w-full h-full object-cover" /></div>
+                      <div className="w-10 h-10 bg-white rounded-lg overflow-hidden"><img src={item.imageUrl?.startsWith('http') || item.imageUrl?.startsWith('data:') ? item.imageUrl : `${import.meta.env.VITE_API_BASE_URL}${item.imageUrl}`} alt="" className="w-full h-full object-cover" /></div>
                       <div><p className="font-bold text-stone-700 text-sm">{item.name}</p><p className="text-[10px] text-stone-400 font-bold uppercase">Qty: {item.quantity}</p></div>
                     </div>
                     <span className="text-stone-700 font-black text-sm">{settings?.currency || '₦'}{(item.price * item.quantity).toFixed(2)}</span>

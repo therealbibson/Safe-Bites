@@ -1,15 +1,22 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Package, Clock, CheckCircle2, ChevronDown } from 'lucide-react';
+import { ChevronLeft, Package, Clock, CheckCircle2, ChevronDown, Star, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useSettings } from '../context/SettingsContext';
 import Navbar from '../components/Navbar';
+import ReviewModal from '../components/ReviewModal';
 
 const OrderCard = ({ order, index }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const { settings } = useSettings();
   const currency = settings?.currency || '₦';
+
+  const handleOpenReview = (e) => {
+    e.stopPropagation();
+    setIsReviewModalOpen(true);
+  };
 
   return (
     <motion.div
@@ -40,8 +47,10 @@ const OrderCard = ({ order, index }) => {
             </div>
           </div>
           <div className="flex flex-col items-end">
-            <span className="px-2 sm:px-3 py-1 bg-orange-100 text-orange-600 text-[10px] sm:text-xs font-bold rounded-full uppercase tracking-wider mb-1 sm:mb-2">
-              {order.status}
+            <span className={`px-2 sm:px-3 py-1 text-[10px] sm:text-xs font-bold rounded-full uppercase tracking-wider mb-1 sm:mb-2 ${
+              order.status === 'delivered' ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'
+            }`}>
+              {order.status.replace('_', ' ')}
             </span>
             <span className="text-xl sm:text-2xl font-black text-stone-800">{currency}{order.total.toFixed(2)}</span>
           </div>
@@ -60,10 +69,15 @@ const OrderCard = ({ order, index }) => {
                 {order.items.map((item, i) => (
                   <div key={i} className="flex items-center justify-between">
                     <div className="flex items-center space-x-2 sm:space-x-3">
-                      <img src={item.imageUrl} className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl object-cover" alt={item.name} />
-                      <span className="font-bold text-stone-700 text-sm sm:text-base">{item.name}</span>
+                      <img src={item.imageUrl?.startsWith('http') || item.imageUrl?.startsWith('data:') ? item.imageUrl : `${import.meta.env.VITE_API_BASE_URL}${item.imageUrl}`} className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl object-cover" alt={item.name} />
+                      <div className="flex flex-col">
+                        <span className="font-bold text-stone-700 text-sm sm:text-base">{item.name}</span>
+                        <span className="text-[10px] text-stone-400 font-bold uppercase">Qty: {item.quantity}</span>
+                      </div>
                     </div>
-                    <span className="text-stone-400 font-medium text-xs sm:text-sm">{currency}{item.price.toFixed(2)}</span>
+                    <div className="flex items-center space-x-4">
+                      <span className="text-stone-400 font-medium text-xs sm:text-sm">{currency}{(item.price * item.quantity).toFixed(2)}</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -71,29 +85,55 @@ const OrderCard = ({ order, index }) => {
               <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 sm:pt-6 border-t border-stone-50">
                 <div className="flex items-center text-green-600 font-bold text-xs sm:text-sm">
                   <CheckCircle2 size={14} className="mr-2 sm:w-4 sm:h-4" />
-                  Safe Delivery Guaranteed
+                  {order.status === 'delivered' ? 'Order Completed' : 'Safe Delivery Guaranteed'}
                 </div>
-                <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // Reorder logic could go here
-                  }}
-                  className="w-full sm:w-auto text-orange-600 font-black text-xs sm:text-sm uppercase tracking-widest hover:underline py-2 sm:py-0 border sm:border-0 border-orange-100 rounded-xl"
-                >
-                  Reorder Items
-                </button>
+                <div className="flex items-center space-x-3 w-full sm:w-auto">
+                  {order.status === 'delivered' && (
+                    <button 
+                      onClick={handleOpenReview}
+                      className="flex-1 sm:flex-none flex items-center justify-center space-x-2 px-4 py-2 bg-orange-50 text-orange-600 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-orange-600 hover:text-white transition-all shadow-sm"
+                    >
+                      <Star size={14} fill="currentColor" />
+                      <span>Review Order</span>
+                    </button>
+                  )}
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Reorder logic could go here
+                    }}
+                    className="flex-1 sm:flex-none text-orange-600 font-black text-xs sm:text-sm uppercase tracking-widest hover:underline py-2 sm:py-0 border sm:border-0 border-orange-100 rounded-xl"
+                  >
+                    Reorder Items
+                  </button>
+                </div>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
+
+      <ReviewModal 
+        isOpen={isReviewModalOpen}
+        onClose={() => setIsReviewModalOpen(false)}
+        order={order}
+      />
     </motion.div>
   );
 };
 
 const Orders = () => {
-  const { orders } = useCart();
+  const { orders, pagination, fetchOrders, loading } = useCart();
   const navigate = useNavigate();
+  
+  console.log('[OrdersPage] Current orders in context:', orders);
+  console.log('[OrdersPage] Loading state:', loading);
+
+  const handleLoadMore = () => {
+    if (pagination.page < pagination.pages) {
+      fetchOrders(pagination.page + 1, true);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-stone-50 pb-20 pt-24">
@@ -107,7 +147,7 @@ const Orders = () => {
           <h1 className="text-3xl font-black text-stone-800 tracking-tight uppercase">Order History</h1>
         </div>
 
-        {orders.length === 0 ? (
+        {orders.length === 0 && !loading ? (
           <div className="text-center py-20 bg-white rounded-[2.5rem] border border-stone-100 shadow-sm">
             <Package size={64} className="mx-auto text-stone-200 mb-6" />
             <p className="text-xl text-stone-400 font-bold">No orders yet</p>
@@ -123,6 +163,23 @@ const Orders = () => {
             {orders.map((order, index) => (
               <OrderCard key={order.id} order={order} index={index} />
             ))}
+
+            {loading && (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-8 h-8 text-orange-600 animate-spin" />
+              </div>
+            )}
+
+            {!loading && pagination.page < pagination.pages && (
+              <div className="flex justify-center mt-8">
+                <button 
+                  onClick={handleLoadMore}
+                  className="bg-white border border-stone-200 text-stone-600 px-8 py-3 rounded-full font-bold uppercase tracking-widest text-sm hover:bg-orange-50 hover:text-orange-600 transition-all shadow-sm"
+                >
+                  Load More Orders
+                </button>
+              </div>
+            )}
           </div>
         )}
       </main>

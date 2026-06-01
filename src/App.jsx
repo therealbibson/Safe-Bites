@@ -2,6 +2,7 @@ import { BrowserRouter, Route, Routes, Navigate, useLocation } from 'react-route
 import { CartProvider } from './context/CartContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
+import { NotificationProvider } from './context/NotificationContext';
 import SplashScreen from './pages/SplashScreen';
 import SignIn from './pages/SignIn';
 import SignUp from './pages/SignUp';
@@ -41,26 +42,28 @@ function App() {
   return (
     <AuthProvider>
       <SettingsProvider>
-        <CartProvider>
-          <BrowserRouter>
-            <MaintenanceWrapper>
-              <Routes>
-                <Route path="/" element={<SplashScreen />} />
-                <Route path="/signin" element={<SignIn />} />
-                <Route path="/signup" element={<SignUp />} />
-                <Route path="/home" element={<Home />} />
-                <Route path="/cart" element={<Cart />} />
-                <Route path="/checkout" element={<Checkout />} />
-                <Route path="/user" element={<UserPage />} />
-                <Route path="/food/:id" element={<FoodDetail />} />
-                <Route path="/orders" element={<Orders />} />
-                <Route path="/admin" element={<Admin />} />
-                <Route path="/maintenance" element={<Maintenance />} />
-                <Route path="*" element={<Navigate to="/home" replace />} />
-              </Routes>
-            </MaintenanceWrapper>
-          </BrowserRouter>
-        </CartProvider>
+        <NotificationProvider>
+          <CartProvider>
+            <BrowserRouter>
+              <MaintenanceWrapper>
+                <Routes>
+                  <Route path="/" element={<SplashScreen />} />
+                  <Route path="/signin" element={<SignIn />} />
+                  <Route path="/signup" element={<SignUp />} />
+                  <Route path="/home" element={<Home />} />
+                  <Route path="/cart" element={<Cart />} />
+                  <Route path="/checkout" element={<Checkout />} />
+                  <Route path="/user" element={<UserPage />} />
+                  <Route path="/food/:id" element={<FoodDetail />} />
+                  <Route path="/orders" element={<Orders />} />
+                  <Route path="/admin" element={<Admin />} />
+                  <Route path="/maintenance" element={<Maintenance />} />
+                  <Route path="*" element={<Navigate to="/home" replace />} />
+                </Routes>
+              </MaintenanceWrapper>
+            </BrowserRouter>
+          </CartProvider>
+        </NotificationProvider>
       </SettingsProvider>
     </AuthProvider>
   );
