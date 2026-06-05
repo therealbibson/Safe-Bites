@@ -138,7 +138,26 @@ const Admin = () => {
     const file = e.target.files[0];
     if (!file) return;
 
-    console.log('[Admin] Starting image upload:', file.name, file.size);
+    // Validate file
+    const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+    const VALID_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+    if (file.size === 0) {
+      alert('Cannot upload an empty file');
+      return;
+    }
+
+    if (file.size > MAX_SIZE) {
+      alert('File size must be less than 5MB');
+      return;
+    }
+
+    if (!VALID_TYPES.includes(file.type)) {
+      alert('Only JPEG, PNG, and WEBP images are allowed');
+      return;
+    }
+
+    console.log('[Admin] Starting image upload:', file.name, file.size, file.type);
 
     const uploadFormData = new FormData();
     uploadFormData.append('image', file);
@@ -163,8 +182,9 @@ const Admin = () => {
         const data = await response.json();
         console.log('[Admin] Image upload successful:', data.imageUrl);
         setFormData(prev => ({ ...prev, imageUrl: data.imageUrl }));
+        alert('Image uploaded successfully!');
       } else {
-        const error = await response.json();
+        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
         console.error('[Admin] Image upload failed:', error);
         alert(error.error || error.details || 'Failed to upload image');
       }

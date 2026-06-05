@@ -18,8 +18,16 @@ export const SettingsProvider = ({ children }) => {
     maintenanceMode: false
   });
   const [loading, setLoading] = useState(true);
+  const [retryCount, setRetryCount] = React.useRef(0);
+  const [rateLimitReset, setRateLimitReset] = React.useRef(Date.now() + 60000);
 
   const fetchSettings = useCallback(async () => {
+    // Skip if rate limited and reset time hasn't passed
+    if (Date.now() < retryCount.current) {
+      console.log('[SettingsContext] Skipping fetch: rate limited, retry after', new Date(retryCount.current));
+      return;
+    }
+
     try {
       const headers = {};
       if (user?.id || user?._id) {
@@ -32,11 +40,18 @@ export const SettingsProvider = ({ children }) => {
       if (response.ok) {
         const data = await response.json();
         setSettings(data);
+        // Reset retry count on success
+        retryCount.current = 0;
+      } else if (response.status === 429) {
+        // Rate limited: exponential backoff
+        const backoffMs = Math.min(60000, 5000 * Math.pow(2, retryCount.current || 0));
+        retryCount.current = Date.now() + backoffMs;
+        console.warn(`[SettingsContext] Rate limited (429). Backing off for ${backoffMs}ms`);
       } else {
-        console.warn('Failed to fetch settings:', response.status);
+        console.warn('[SettingsContext] Failed to fetch settings:', response.status);
       }
     } catch (error) {
-      console.error('Error fetching settings:', error);
+      console.error('[SettingsContext] Error fetching settings:', error);
     } finally {
       setLoading(false);
     }
@@ -45,8 +60,8 @@ export const SettingsProvider = ({ children }) => {
   useEffect(() => {
     fetchSettings();
     
-    // Refresh settings every 30 seconds
-    const interval = setInterval(fetchSettings, 30 * 1000);
+    // Refresh settings every 60 seconds (reduced polling to avoid rate limits)
+    const interval = setInterval(fetchSettings, 60 * 1000);
     return () => clearInterval(interval);
   }, [fetchSettings]);
 

@@ -8,10 +8,18 @@ export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const retryCountRef = React.useRef(0);
+  const rateLimitResetRef = React.useRef(0);
 
   const fetchNotifications = async () => {
     if (!isAuthenticated || !user) {
       console.log('[NotificationContext] Skip fetch: Not authenticated or user missing');
+      return;
+    }
+
+    // Skip if rate limited and reset time hasn't passed
+    if (Date.now() < rateLimitResetRef.current) {
+      console.log('[NotificationContext] Skipping fetch: rate limited, retry after', new Date(rateLimitResetRef.current));
       return;
     }
     
@@ -31,9 +39,17 @@ export const NotificationProvider = ({ children }) => {
         console.log(`[NotificationContext] Received ${data.length} notifications`);
         setNotifications(data);
         setUnreadCount(data.filter(n => !n.isRead).length);
+        // Reset retry count on success
+        retryCountRef.current = 0;
+      } else if (response.status === 429) {
+        // Rate limited: exponential backoff
+        const backoffMs = Math.min(60000, 5000 * Math.pow(2, retryCountRef.current || 0));
+        retryCountRef.current += 1;
+        rateLimitResetRef.current = Date.now() + backoffMs;
+        console.warn(`[NotificationContext] Rate limited (429). Backing off for ${backoffMs}ms`);
       } else {
-        const errorData = await response.json();
-        console.error('[NotificationContext] Failed to fetch notifications:', errorData.error);
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[NotificationContext] Failed to fetch notifications:', errorData.error || response.status);
       }
     } catch (error) {
       console.error('[NotificationContext] Network error fetching notifications:', error);
@@ -44,8 +60,8 @@ export const NotificationProvider = ({ children }) => {
 
   useEffect(() => {
     fetchNotifications();
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(fetchNotifications, 30000);
+    // Poll for new notifications every 60 seconds (reduced from 30s to avoid rate limits)
+    const interval = setInterval(fetchNotifications, 60000);
     return () => clearInterval(interval);
   }, [isAuthenticated, user]);
 
