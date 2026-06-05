@@ -7,6 +7,7 @@ import {
   LayoutDashboard, Package, Users, ShoppingBag, Settings, Plus, Edit, 
   Trash2, Loader2, CheckCircle2, Clock, Truck, XCircle, Search, User, Phone, MapPin, CreditCard, Star, Bell, Menu, X, MoreVertical
 } from 'lucide-react';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const Admin = () => {
   const { user, isAuthenticated } = useAuth();
@@ -137,29 +138,39 @@ const Admin = () => {
     const file = e.target.files[0];
     if (!file) return;
 
+    console.log('[Admin] Starting image upload:', file.name, file.size);
+
     const uploadFormData = new FormData();
     uploadFormData.append('image', file);
 
     setIsUploading(true);
     try {
+      const uId = user?.id || user?._id;
+      if (!uId) {
+        throw new Error('You must be logged in to upload images.');
+      }
+
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/upload`, {
         method: 'POST',
         headers: {
-          'x-user-id': user?.id || user?._id,
-          'x-user-role': user?.role
+          'x-user-id': uId,
+          'x-user-role': user?.role || 'admin'
         },
         body: uploadFormData
       });
 
       if (response.ok) {
         const data = await response.json();
+        console.log('[Admin] Image upload successful:', data.imageUrl);
         setFormData(prev => ({ ...prev, imageUrl: data.imageUrl }));
       } else {
         const error = await response.json();
-        alert(error.error || 'Failed to upload image');
+        console.error('[Admin] Image upload failed:', error);
+        alert(error.error || error.details || 'Failed to upload image');
       }
     } catch (error) {
-      console.error('Error uploading image:', error);
+      console.error('[Admin] Error uploading image:', error);
+      alert(error.message || 'Error uploading image');
     } finally {
       setIsUploading(false);
     }
@@ -467,7 +478,8 @@ const Admin = () => {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 pt-16">
+    <ErrorBoundary>
+      <div className="min-h-screen bg-stone-50 pt-16">
       <Navbar />
       
       {loading && (
@@ -1091,10 +1103,22 @@ const Admin = () => {
                 <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Product Image</label>
                 <div className="flex flex-col sm:flex-row items-center gap-4">
                   <div className="relative w-full sm:w-32 h-32 bg-stone-50 border-2 border-dashed border-stone-200 rounded-2xl overflow-hidden flex items-center justify-center group">
-                    {formData.imageUrl ? <img src={formData.imageUrl?.startsWith('http') || formData.imageUrl?.startsWith('data:') ? formData.imageUrl : `${import.meta.env.VITE_API_BASE_URL}${formData.imageUrl}`} alt="Preview" className="w-full h-full object-cover" /> : <Plus className="text-stone-300 group-hover:text-orange-500 transition-colors" size={32} />}
+                    {isUploading ? (
+                      <div className="flex flex-col items-center">
+                        <Loader2 className="text-orange-500 animate-spin" size={32} />
+                        <span className="text-[10px] font-bold text-stone-400 mt-2">Uploading...</span>
+                      </div>
+                    ) : formData.imageUrl ? (
+                      <img src={formData.imageUrl?.startsWith('http') || formData.imageUrl?.startsWith('data:') ? formData.imageUrl : `${import.meta.env.VITE_API_BASE_URL}${formData.imageUrl}`} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <Plus className="text-stone-300 group-hover:text-orange-500 transition-colors" size={32} />
+                    )}
                     <input type="file" accept="image/*" onChange={handleImageUpload} disabled={isUploading} className="absolute inset-0 opacity-0 cursor-pointer" />
                   </div>
-                  <input type="text" placeholder="Or enter image URL" value={formData.imageUrl} onChange={(e) => setFormData({...formData, imageUrl: e.target.value})} className="flex-1 bg-stone-50 border border-stone-100 px-4 py-3 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700 text-sm" />
+                  <div className="flex-1 space-y-2">
+                    <input type="text" placeholder="Or enter image URL" value={formData.imageUrl} onChange={(e) => setFormData({...formData, imageUrl: e.target.value})} className="w-full bg-stone-50 border border-stone-100 px-4 py-3 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700 text-sm" />
+                    <p className="text-[10px] text-stone-400 font-bold uppercase px-1">Max 5MB. Format: JPG, PNG, WEBP</p>
+                  </div>
                 </div>
               </div>
               <div className="md:col-span-2 space-y-2">
@@ -1181,7 +1205,8 @@ const Admin = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 };
 

@@ -54,34 +54,49 @@ const UserPage = () => {
     formData.append('image', file);
 
     try {
+      const uId = user?._id || user?.id;
+      if (!uId) throw new Error('Authentication required');
+
+      console.log('[UserPage] Uploading avatar for user:', uId);
+
       const uploadRes = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/upload`, {
         method: 'POST',
         headers: {
-          'x-user-id': user?.id || user?._id,
-          'x-user-role': user?.role
+          'x-user-id': uId,
+          'x-user-role': user?.role || 'user'
         },
         body: formData,
       });
 
-      if (!uploadRes.ok) throw new Error('Failed to upload image');
+      if (!uploadRes.ok) {
+        const error = await uploadRes.json();
+        throw new Error(error.error || error.details || 'Failed to upload image');
+      }
+      
       const { imageUrl } = await uploadRes.json();
+      console.log('[UserPage] Avatar upload successful:', imageUrl);
 
-      const updateRes = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/users/${user._id || user.id}`, {
+      const updateRes = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/users/${uId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': user?.id || user?._id,
+          'x-user-id': uId,
           'x-user-role': user?.role
         },
         body: JSON.stringify({ avatar: imageUrl }),
       });
 
-      if (!updateRes.ok) throw new Error('Failed to update profile');
+      if (!updateRes.ok) {
+        const error = await updateRes.json();
+        throw new Error(error.error || 'Failed to update profile');
+      }
+
       const updatedUser = await updateRes.json();
       updateUser({ avatar: updatedUser.avatar });
+      alert('Avatar updated successfully!');
     } catch (error) {
       console.error('Error updating avatar:', error);
-      alert('Failed to update avatar. Please try again.');
+      alert(error.message || 'Failed to update avatar. Please try again.');
     } finally {
       setIsUploading(false);
     }
