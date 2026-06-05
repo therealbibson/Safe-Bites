@@ -1,24 +1,34 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useAuth } from './AuthContext';
 
 const SettingsContext = createContext();
 
 export const SettingsProvider = ({ children }) => {
+  const { user } = useAuth();
   const [settings, setSettings] = useState({
     storeName: 'SafeBite',
     contactEmail: 'support@safebite.com',
     contactPhone: '+234 800 SAFEBITE',
     currency: '₦',
     deliveryFee: 2.0,
-    minimumOrder: 0,
+    minimumOrderQuantity: 1,
+    minimumOrderPrice: 0,
     isOpen: true,
     openingHours: '08:00 AM - 10:00 PM',
     maintenanceMode: false
   });
   const [loading, setLoading] = useState(true);
 
-  const fetchSettings = async () => {
+  const fetchSettings = useCallback(async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/settings?t=${Date.now()}`);
+      const headers = {};
+      if (user?.id || user?._id) {
+        headers['x-user-id'] = user.id || user._id;
+        headers['x-user-role'] = user.role;
+      }
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/settings?t=${Date.now()}`, {
+        headers
+      });
       if (response.ok) {
         const data = await response.json();
         setSettings(data);
@@ -30,15 +40,15 @@ export const SettingsProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     fetchSettings();
     
-    // Refresh settings every 5 minutes
-    const interval = setInterval(fetchSettings, 5 * 60 * 1000);
+    // Refresh settings every 30 seconds
+    const interval = setInterval(fetchSettings, 30 * 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchSettings]);
 
   return (
     <SettingsContext.Provider value={{ settings, loading, refreshSettings: fetchSettings }}>

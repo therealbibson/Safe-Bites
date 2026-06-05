@@ -1,6 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
-import { Search, Flame, Star, Clock, Heart } from 'lucide-react';
+import { Search, Flame, Star, Clock, Heart, ChevronDown, ChevronUp, Filter } from 'lucide-react';
+import { AnimatePresence } from 'framer-motion';
 import Navbar from '../components/Navbar';
 import FoodCard from '../components/FoodCard';
 import Marquee from '../components/Marquee';
@@ -9,8 +10,26 @@ const Home = () => {
   const [foods, setFoods] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('All');
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/categories`);
+        if (response.ok) {
+          const data = await response.json();
+          // Always include 'All' at the beginning
+          const categoryNames = ['All', ...data.map(c => c.name)];
+          setCategories(categoryNames);
+        }
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      }
+    };
+    fetchCategories();
+  }, []);
+
   const [searchQuery, setSearchQuery] = useState('');
-  const [categories, setCategories] = useState(['All', 'Breakfast', 'Swallow', 'Rice Dishes', 'Snacks', 'Drinks']);
+  const [categories, setCategories] = useState(['All', 'Breakfast', 'Swallow', 'Rice Dishes', 'Soup', 'Protein', 'Snacks', 'Drinks']);
+  const [isCategoryOpen, setIsCategoryOpen] = useState(false);
   
   const heroRef = useRef(null);
   const menuRef = useRef(null);
@@ -153,25 +172,72 @@ const Home = () => {
             </div>
           </motion.div>
 
-          {/* Animated Categories */}
-          <div className="flex space-x-3 sm:space-x-4 overflow-x-auto pb-6 sm:pb-8 scrollbar-hide px-2">
-            {categories.map((cat, i) => (
-              <motion.button
-                key={cat}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.1 }}
-                onClick={() => setActiveCategory(cat)}
-                className={`px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl whitespace-nowrap font-bold text-base sm:text-lg transition-all ${
-                  activeCategory === cat 
-                    ? 'bg-orange-500 text-white shadow-lg shadow-orange-200 scale-105' 
-                    : 'bg-white text-stone-600 hover:bg-orange-50 hover:shadow-md'
-                }`}
-                whileTap={{ scale: 0.9 }}
+          {/* Categories: Dropdown on Mobile, Horizontal Scroll on Desktop */}
+          <div className="mb-8 sm:mb-12">
+            {/* Desktop View */}
+            <div className="hidden sm:flex space-x-4 overflow-x-auto pb-4 scrollbar-hide">
+              {categories.map((cat, i) => (
+                <motion.button
+                  key={cat}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.1 }}
+                  onClick={() => setActiveCategory(cat)}
+                  className={`px-8 py-3 rounded-2xl whitespace-nowrap font-bold text-lg transition-all ${
+                    activeCategory === cat 
+                      ? 'bg-orange-500 text-white shadow-lg shadow-orange-200 scale-105' 
+                      : 'bg-white text-stone-600 hover:bg-orange-50 hover:shadow-md'
+                  }`}
+                  whileTap={{ scale: 0.9 }}
+                >
+                  {cat}
+                </motion.button>
+              ))}
+            </div>
+
+            {/* Mobile View: Dropdown */}
+            <div className="sm:hidden relative">
+              <button 
+                onClick={() => setIsCategoryOpen(!isCategoryOpen)}
+                className="w-full flex items-center justify-between px-6 py-4 bg-white rounded-2xl shadow-sm border border-stone-100 font-bold text-stone-800"
               >
-                {cat}
-              </motion.button>
-            ))}
+                <div className="flex items-center space-x-3">
+                  <Filter size={18} className="text-orange-500" />
+                  <span>Category: <span className="text-orange-600">{activeCategory}</span></span>
+                </div>
+                {isCategoryOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+              </button>
+
+              <AnimatePresence>
+                {isCategoryOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-stone-100 z-50 overflow-hidden"
+                  >
+                    <div className="max-h-[300px] overflow-y-auto">
+                      {categories.map((cat) => (
+                        <button
+                          key={cat}
+                          onClick={() => {
+                            setActiveCategory(cat);
+                            setIsCategoryOpen(false);
+                          }}
+                          className={`w-full text-left px-6 py-4 font-bold transition-colors ${
+                            activeCategory === cat 
+                              ? 'bg-orange-50 text-orange-600' 
+                              : 'text-stone-600 hover:bg-stone-50'
+                          }`}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
 
           {/* Feature Grid with Pop Animations */}

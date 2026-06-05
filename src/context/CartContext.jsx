@@ -11,14 +11,15 @@ export const CartProvider = ({ children }) => {
     const savedCart = localStorage.getItem('safebite_cart');
     return savedCart ? JSON.parse(savedCart) : [];
   });
-  const [orders, setOrders] = useState([]);
-  const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
-  const [loading, setLoading] = useState(false);
-  const [addingItems, setAddingItems] = useState(new Set());
 
   useEffect(() => {
     localStorage.setItem('safebite_cart', JSON.stringify(cart));
   }, [cart]);
+
+  const [orders, setOrders] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
+  const [loading, setLoading] = useState(false);
+  const [addingItems, setAddingItems] = useState(new Set());
 
   // Fetch orders from backend when authenticated
   const fetchOrders = async (page = 1, append = false) => {
@@ -54,6 +55,7 @@ export const CartProvider = ({ children }) => {
           date: order.createdAt,
           items: order.items,
           total: order.totalAmount,
+          deliveryFee: order.deliveryFee,
           status: order.status,
           deliveryAddress: order.deliveryAddress,
           phoneNumber: order.phoneNumber

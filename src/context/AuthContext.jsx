@@ -9,30 +9,6 @@ export const AuthProvider = ({ children }) => {
     const savedUser = localStorage.getItem('safebite_user');
     return savedUser ? JSON.parse(savedUser) : null;
   });
-  const [settings, setSettings] = useState(null);
-  const [settingsLoading, setSettingsLoading] = useState(true);
-
-  const fetchSettings = useCallback(async () => {
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/settings`);
-      if (!res.ok) {
-        console.warn('Failed to fetch settings:', res.status);
-        setSettings(null);
-        return;
-      }
-      const data = await res.json();
-      setSettings(data);
-    } catch (error) {
-      console.error('Failed to fetch settings:', error);
-      setSettings(null);
-    } finally {
-      setSettingsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchSettings();
-  }, [fetchSettings]);
 
   const logout = useCallback(() => {
     setUser(null);
@@ -98,10 +74,7 @@ export const AuthProvider = ({ children }) => {
       login, 
       logout, 
       updateUser,
-      isAuthenticated: !!user,
-      settings,
-      settingsLoading,
-      refreshSettings: fetchSettings
+      isAuthenticated: !!user
     }}>
       {children}
     </AuthContext.Provider>

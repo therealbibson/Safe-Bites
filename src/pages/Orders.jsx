@@ -80,6 +80,21 @@ const OrderCard = ({ order, index }) => {
                     </div>
                   </div>
                 ))}
+                
+                <div className="pt-4 border-t border-stone-50 space-y-2">
+                  <div className="flex justify-between items-center text-[10px] sm:text-xs uppercase font-bold text-stone-400">
+                    <span>Subtotal</span>
+                    <span>{currency}{(order.total - (order.deliveryFee || 0)).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] sm:text-xs uppercase font-bold text-stone-400">
+                    <span>Delivery Fee</span>
+                    <span>{currency}{(order.deliveryFee || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-2 border-t border-stone-50">
+                    <span className="text-xs sm:text-sm font-black text-stone-800 uppercase">Total Paid</span>
+                    <span className="text-base sm:text-lg font-black text-orange-600">{currency}{order.total.toFixed(2)}</span>
+                  </div>
+                </div>
               </div>
 
               <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 sm:pt-6 border-t border-stone-50">

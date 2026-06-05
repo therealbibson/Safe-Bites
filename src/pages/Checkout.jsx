@@ -22,6 +22,23 @@ const Checkout = () => {
     }
   }, [isAuthenticated, navigate]);
 
+  useEffect(() => {
+    // If cart is empty or below minimums, go back
+    if (cart.length === 0) {
+      navigate('/cart');
+      return;
+    }
+
+    const minQty = settings?.minimumOrderQuantity || 1;
+    const minPrice = settings?.minimumOrderPrice || 0;
+    const cartQty = cart.reduce((total, item) => total + item.quantity, 0);
+
+    if (cartQty < minQty || cartTotal < minPrice) {
+      console.warn('[Checkout] Minimum requirements not met, redirecting to cart');
+      navigate('/cart');
+    }
+  }, [cart, cartTotal, settings, navigate]);
+
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
     if (!isAuthenticated || isPlacingOrder) return;

@@ -2,15 +2,18 @@ import { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
+import { useNotifications } from '../context/NotificationContext';
 import { 
   LayoutDashboard, Package, Users, ShoppingBag, Settings, Plus, Edit, 
-  Trash2, Loader2, CheckCircle2, Clock, Truck, XCircle, Search, User, Phone, MapPin, CreditCard, Star
+  Trash2, Loader2, CheckCircle2, Clock, Truck, XCircle, Search, User, Phone, MapPin, CreditCard, Star, Bell, Menu, X, MoreVertical
 } from 'lucide-react';
 
 const Admin = () => {
   const { user, isAuthenticated } = useAuth();
   const { refreshSettings } = useSettings();
+  const { notifications: adminNotifications, markAsRead, markAllAsRead, refreshNotifications } = useNotifications();
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [foods, setFoods] = useState([]);
   const [orders, setOrders] = useState([]);
   const [users, setUsers] = useState([]);
@@ -18,13 +21,86 @@ const Admin = () => {
   const [searchUserQuery, setSearchUserQuery] = useState('');
   const [searchFoodQuery, setSearchFoodQuery] = useState('');
   const [categories, setCategories] = useState([]);
+  const [isCategoryModalOpen, setIsCategoryOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [categoryFormData, setCategoryFormData] = useState({ name: '', description: '' });
+
+  const handleOpenCategoryModal = (cat = null) => {
+    if (cat) {
+      setEditingCategory(cat);
+      setCategoryFormData({ name: cat.name, description: cat.description || '' });
+    } else {
+      setEditingCategory(null);
+      setCategoryFormData({ name: '', description: '' });
+    }
+    setIsCategoryOpen(true);
+  };
+
+  const handleSaveCategory = async (e) => {
+    e.preventDefault();
+    setIsSaving(true);
+    try {
+      const headers = {
+        'Content-Type': 'application/json',
+        'x-user-id': user?.id || user?._id,
+        'x-user-role': user?.role
+      };
+      
+      const url = editingCategory 
+        ? `${import.meta.env.VITE_API_BASE_URL}/api/categories/${editingCategory._id}`
+        : `${import.meta.env.VITE_API_BASE_URL}/api/categories`;
+      
+      const method = editingCategory ? 'PATCH' : 'POST';
+      
+      const response = await fetch(url, {
+        method,
+        headers,
+        body: JSON.stringify(categoryFormData)
+      });
+      
+      if (response.ok) {
+        const savedCat = await response.json();
+        if (editingCategory) {
+          setCategories(categories.map(c => c._id === savedCat._id ? savedCat : c));
+        } else {
+          setCategories([...categories, savedCat]);
+        }
+        setIsCategoryOpen(false);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to save category');
+      }
+    } catch (error) {
+      console.error('Error saving category:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteCategory = async (id) => {
+    if (!window.confirm('Are you sure? This will not delete products in this category but may affect filtering.')) return;
+    try {
+      const headers = {
+        'x-user-id': user?.id || user?._id,
+        'x-user-role': user?.role
+      };
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/categories/${id}`, {
+        method: 'DELETE',
+        headers
+      });
+      if (response.ok) setCategories(categories.filter(c => c._id !== id));
+    } catch (error) {
+      console.error('Error deleting category:', error);
+    }
+  };
   const [settings, setSettings] = useState({
     storeName: 'SafeBite',
     contactEmail: 'support@safebite.com',
     contactPhone: '+234 800 SAFEBITE',
     currency: '₦',
     deliveryFee: 2.0,
-    minimumOrder: 0,
+    minimumOrderQuantity: 1,
+    minimumOrderPrice: 0,
     isOpen: true,
     openingHours: '08:00 AM - 10:00 PM',
     maintenanceMode: false
@@ -166,25 +242,46 @@ const Admin = () => {
     const fetchInitialData = async () => {
       setLoading(true);
       try {
+        const uId = user?.id || user?._id;
+        if (!uId) {
+          console.warn('[Admin] User ID missing, skipping fetch');
+          return;
+        }
+
         const headers = {
-          'x-user-id': user?.id || user?._id,
-          'x-user-role': user?.role
+          'x-user-id': uId,
+          'x-user-role': user?.role || 'admin'
         };
+
+        console.log('[Admin] Fetching initial data with headers:', headers);
 
         const [statsRes, catsRes, settingsRes] = await Promise.all([
           fetch(`${import.meta.env.VITE_API_BASE_URL}/api/admin/stats`, { headers }),
           fetch(`${import.meta.env.VITE_API_BASE_URL}/api/categories`),
-          fetch(`${import.meta.env.VITE_API_BASE_URL}/api/settings?t=${Date.now()}`)
+          fetch(`${import.meta.env.VITE_API_BASE_URL}/api/settings?t=${Date.now()}`, { headers })
         ]);
 
-        const statsData = await statsRes.json();
-        const catsData = await catsRes.json();
-        const settingsData = await settingsRes.json();
+        if (statsRes.ok) {
+          const statsData = await statsRes.json();
+          setAdminStats(statsData.stats);
+          setOrders(statsData.recentOrders || []);
+        }
 
-        setAdminStats(statsData.stats);
-        setOrders(statsData.recentOrders || []);
-        setCategories(catsData);
-        if (settingsData && !settingsData.error) setSettings(settingsData);
+        if (catsRes.ok) {
+          const catsData = await catsRes.json();
+          setCategories(catsData);
+        }
+
+        if (settingsRes.ok) {
+          const settingsData = await settingsRes.json();
+          console.log('[Admin] Received settings:', settingsData);
+          if (settingsData && !settingsData.error) {
+            setSettings(settingsData);
+          }
+        } else {
+          console.error('[Admin] Failed to fetch settings:', settingsRes.status);
+        }
+
       } catch (error) {
         console.error('Error fetching admin data:', error);
       } finally {
@@ -316,6 +413,16 @@ const Admin = () => {
     e.preventDefault();
     setIsSaving(true);
     try {
+      // Ensure numeric fields are numbers
+      const payload = {
+        ...settings,
+        deliveryFee: parseFloat(settings.deliveryFee) || 0,
+        minimumOrderQuantity: parseInt(settings.minimumOrderQuantity) || 1,
+        minimumOrderPrice: parseFloat(settings.minimumOrderPrice) || 0
+      };
+
+      console.log('Saving settings:', payload);
+
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/settings`, {
         method: 'PATCH',
         headers: {
@@ -323,19 +430,23 @@ const Admin = () => {
           'x-user-id': user?.id || user?._id,
           'x-user-role': user?.role
         },
-        body: JSON.stringify(settings)
+        body: JSON.stringify(payload)
       });
+
       if (response.ok) {
         const updatedSettings = await response.json();
+        console.log('Settings updated successfully:', updatedSettings);
         setSettings(updatedSettings);
-        refreshSettings(); // Sync global settings context
+        if (refreshSettings) refreshSettings(); // Sync global settings context
         alert('Settings updated successfully!');
       } else {
         const error = await response.json();
+        console.error('Failed to update settings:', error);
         alert(error.error || 'Failed to update settings');
       }
     } catch (error) {
       console.error('Error updating settings:', error);
+      alert('An error occurred while saving settings.');
     } finally {
       setIsSaving(false);
     }
@@ -369,26 +480,59 @@ const Admin = () => {
       )}
       
       <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* Mobile Toggle Button */}
+        <button 
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="lg:hidden fixed bottom-6 right-6 z-50 bg-orange-600/20 backdrop-blur-lg text-orange-600 p-4 rounded-2xl shadow-xl border border-orange-600/20 active:scale-95 transition-all"
+        >
+          {sidebarOpen ? <X size={24} /> : <MoreVertical size={24} />}
+        </button>
+
         <div className="flex flex-col lg:flex-row gap-8">
-          <aside className="w-full lg:w-64 flex lg:flex-col overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 gap-2 sticky top-16 lg:top-24 bg-stone-50 z-20">
+          {/* Overlay for Mobile */}
+          {sidebarOpen && (
+            <div 
+              className="lg:hidden fixed inset-0 bg-black/20 backdrop-blur-sm z-30"
+              onClick={() => setSidebarOpen(false)}
+            />
+          )}
+
+          {/* Sidebar */}
+          <aside className={`
+            fixed lg:sticky top-0 lg:top-24 left-0 h-full lg:h-auto w-64 lg:w-64 
+            bg-white lg:bg-stone-50 z-40 lg:z-20 p-6 lg:p-0 border-r lg:border-none
+            transition-transform duration-300 ease-in-out
+            ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+            flex flex-col gap-2
+          `}>
+            <div className="lg:hidden mb-8">
+              <h2 className="text-2xl font-black text-orange-600 tracking-tighter">SAFEBITE</h2>
+              <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Admin Control Panel</p>
+            </div>
+
             {[
               { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
               { id: 'products', icon: Package, label: 'Products' },
+              { id: 'categories', icon: Menu, label: 'Categories' },
               { id: 'orders', icon: ShoppingBag, label: 'Orders' },
               { id: 'reviews', icon: Star, label: 'Reviews' },
               { id: 'users', icon: Users, label: 'Users' },
+              { id: 'notifications', icon: Bell, label: 'Notifications' },
               { id: 'settings', icon: Settings, label: 'Settings' }
             ].map((tab) => (
               <button 
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex-shrink-0 lg:w-full flex items-center space-x-2 sm:space-x-3 px-4 sm:px-6 lg:px-4 py-2.5 sm:py-3 rounded-xl font-bold transition-all text-sm sm:text-base ${
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  setSidebarOpen(false);
+                }}
+                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-bold transition-all text-base ${
                   activeTab === tab.id 
                     ? 'bg-orange-600 text-white shadow-lg' 
-                    : 'bg-white text-stone-600 hover:bg-orange-50 border border-stone-100'
+                    : 'bg-white lg:bg-transparent text-stone-600 hover:bg-orange-50 border border-stone-100 lg:border-stone-200'
                 }`}
               >
-                <tab.icon size={18} className="sm:w-5 sm:h-5" />
+                <tab.icon size={20} />
                 <span>{tab.label}</span>
               </button>
             ))}
@@ -458,7 +602,7 @@ const Admin = () => {
                                 {order.status}
                               </span>
                             </td>
-                            <td className="py-4 font-black text-stone-800 text-sm">${order.totalAmount.toFixed(2)}</td>
+                            <td className="py-4 font-black text-stone-800 text-sm">{settings?.currency || '₦'}{order.totalAmount.toFixed(2)}</td>
                             <td className="py-4 text-right text-xs font-bold text-stone-500">
                               {new Date(order.createdAt).toLocaleString()}
                             </td>
@@ -499,6 +643,14 @@ const Admin = () => {
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Delivery Fee</label>
                     <input type="number" step="0.01" value={settings.deliveryFee} onChange={(e) => setSettings({...settings, deliveryFee: e.target.value})} className="w-full bg-stone-50 border border-stone-100 px-4 py-3 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Min. Order Quantity (Items)</label>
+                    <input type="number" value={settings.minimumOrderQuantity} onChange={(e) => setSettings({...settings, minimumOrderQuantity: e.target.value})} className="w-full bg-stone-50 border border-stone-100 px-4 py-3 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Min. Order Price ({settings.currency})</label>
+                    <input type="number" step="0.01" value={settings.minimumOrderPrice} onChange={(e) => setSettings({...settings, minimumOrderPrice: e.target.value})} className="w-full bg-stone-50 border border-stone-100 px-4 py-3 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700" />
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Opening Hours</label>
@@ -567,7 +719,7 @@ const Admin = () => {
                         </div>
                         <div className="flex items-center justify-between mt-1">
                           <span className="text-[10px] bg-stone-100 text-stone-500 px-2 py-0.5 rounded-full font-bold uppercase">{product.category}</span>
-                          <span className="font-black text-orange-600 text-sm">${product.price.toFixed(2)}</span>
+                          <span className="font-black text-orange-600 text-sm">{settings?.currency || '₦'}{product.price.toFixed(2)}</span>
                         </div>
                       </div>
                       <div className="flex items-center space-x-1">
@@ -624,6 +776,43 @@ const Admin = () => {
               </div>
             )}
 
+            {activeTab === 'categories' && (
+              <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                  <h3 className="text-xl font-black text-stone-800 uppercase tracking-tight">Category Management</h3>
+                  <button onClick={() => handleOpenCategoryModal()} className="bg-orange-600 text-white px-5 py-3 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 hover:bg-orange-700 transition-all shadow-md active:scale-95 self-start sm:self-center">
+                    <Plus size={18} />
+                    <span>Add New Category</span>
+                  </button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-stone-100">
+                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Category Name</th>
+                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Description</th>
+                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-50">
+                      {categories.map((cat) => (
+                        <tr key={cat._id} className="hover:bg-stone-50 transition-colors">
+                          <td className="py-4 font-bold text-stone-700">{cat.name}</td>
+                          <td className="py-4 text-stone-500 text-sm">{cat.description || 'No description'}</td>
+                          <td className="py-4 text-right">
+                            <div className="flex items-center justify-end space-x-2">
+                              <button onClick={() => handleOpenCategoryModal(cat)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"><Edit size={18} /></button>
+                              <button onClick={() => handleDeleteCategory(cat._id)} className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"><Trash2 size={18} /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {activeTab === 'orders' && (
               <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-4 sm:p-6">
                 <h3 className="text-xl font-black text-stone-800 uppercase tracking-tight mb-6">Order Management</h3>
@@ -657,7 +846,7 @@ const Admin = () => {
                               </select>
                             </div>
                           </td>
-                          <td className="py-4 font-black text-stone-800">${order.totalAmount.toFixed(2)}</td>
+                          <td className="py-4 font-black text-stone-800">{settings?.currency || '₦'}{order.totalAmount.toFixed(2)}</td>
                           <td className="py-4 text-right">
                             <button onClick={() => setSelectedOrder(order)} className="text-orange-600 font-bold text-sm hover:underline">Details</button>
                           </td>
@@ -723,6 +912,7 @@ const Admin = () => {
                 </div>
               </div>
             )}
+
             {activeTab === 'reviews' && (
               <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-4 sm:p-6">
                 <h3 className="text-xl font-black text-stone-800 uppercase tracking-tight mb-6">User Reviews</h3>
@@ -738,7 +928,7 @@ const Admin = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-50">
-                      {reviews.map((review) => (
+                      {Array.isArray(reviews) && reviews.map((review) => (
                         <tr key={review._id} className="hover:bg-stone-50 transition-colors">
                           <td className="py-4">
                             <div className="flex items-center space-x-3">
@@ -787,6 +977,80 @@ const Admin = () => {
                       )}
                     </tbody>
                   </table>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'notifications' && (
+              <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-4 sm:p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-black text-stone-800 uppercase tracking-tight">Admin Notifications</h3>
+                  <button 
+                    onClick={markAllAsRead}
+                    className="text-orange-600 font-bold text-sm hover:underline"
+                  >
+                    Mark All as Read
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  {adminNotifications.filter(n => n.type === 'admin_alert').length === 0 ? (
+                    <div className="py-20 text-center">
+                      <Bell className="w-12 h-12 text-stone-200 mx-auto mb-4" />
+                      <p className="text-stone-400 font-bold">No admin alerts yet</p>
+                    </div>
+                  ) : (
+                    adminNotifications
+                      .filter(n => n.type === 'admin_alert')
+                      .map((n) => (
+                      <div 
+                        key={n._id}
+                        className={`p-4 rounded-xl border transition-all ${
+                          !n.isRead 
+                            ? 'bg-orange-50 border-orange-100 shadow-sm' 
+                            : 'bg-white border-stone-100'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex items-center space-x-2">
+                            <div className={`w-2 h-2 rounded-full ${!n.isRead ? 'bg-orange-600' : 'bg-transparent'}`} />
+                            <h4 className="font-bold text-stone-800">{n.title}</h4>
+                          </div>
+                          <span className="text-[10px] font-bold text-stone-400 uppercase">
+                            {new Date(n.createdAt).toLocaleString()}
+                          </span>
+                        </div>
+                        <p className="text-sm text-stone-600 mb-3">{n.message}</p>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            {n.orderId && (
+                              <button 
+                                onClick={() => {
+                                  const targetOrder = orders.find(o => o._id === n.orderId);
+                                  if (targetOrder) {
+                                    setSelectedOrder(targetOrder);
+                                  } else {
+                                    // If not in recent orders, we might need to fetch it
+                                    setActiveTab('orders');
+                                  }
+                                }}
+                                className="text-[10px] font-black text-orange-600 uppercase tracking-widest bg-white px-3 py-1 rounded-full border border-orange-100 hover:bg-orange-600 hover:text-white transition-all"
+                              >
+                                View Order
+                              </button>
+                            )}
+                          </div>
+                          {!n.isRead && (
+                            <button 
+                              onClick={() => markAsRead(n._id)}
+                              className="text-[10px] font-black text-stone-400 uppercase tracking-widest hover:text-stone-800"
+                            >
+                              Mark as read
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             )}
@@ -868,9 +1132,19 @@ const Admin = () => {
                     <span className="text-stone-700 font-black text-sm">{settings?.currency || '₦'}{(item.price * item.quantity).toFixed(2)}</span>
                   </div>
                 ))}
-                <div className="pt-4 border-t border-stone-200 mt-4 flex justify-between items-center">
-                  <span className="font-black text-stone-800 uppercase text-xs">Total</span>
-                  <span className="text-xl font-black text-orange-600">{settings?.currency || '₦'}{selectedOrder.totalAmount.toFixed(2)}</span>
+                <div className="pt-4 border-t border-stone-200 mt-4 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-stone-500 font-bold uppercase text-[10px]">Subtotal</span>
+                    <span className="text-stone-700 font-black text-sm">{settings?.currency || '₦'}{(selectedOrder.totalAmount - (selectedOrder.deliveryFee || 0)).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-stone-500 font-bold uppercase text-[10px]">Delivery Fee</span>
+                    <span className="text-stone-700 font-black text-sm">{settings?.currency || '₦'}{(selectedOrder.deliveryFee || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="pt-2 border-t border-stone-100 flex justify-between items-center">
+                    <span className="font-black text-stone-800 uppercase text-xs">Total</span>
+                    <span className="text-xl font-black text-orange-600">{settings?.currency || '₦'}{selectedOrder.totalAmount.toFixed(2)}</span>
+                  </div>
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
@@ -879,6 +1153,31 @@ const Admin = () => {
                 <div className="md:col-span-2 bg-stone-50 p-3 rounded-xl border border-stone-100"><p className="text-[10px] font-black text-stone-400 uppercase mb-1">Address</p><p className="text-sm font-medium">{selectedOrder.deliveryAddress}</p></div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {isCategoryModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl">
+            <h3 className="text-2xl font-black text-stone-800 mb-6 uppercase tracking-tight">{editingCategory ? 'Edit Category' : 'Add New Category'}</h3>
+            <form onSubmit={handleSaveCategory} className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Category Name</label>
+                <input type="text" value={categoryFormData.name} onChange={(e) => setCategoryFormData({...categoryFormData, name: e.target.value})} className="w-full bg-stone-50 border border-stone-100 px-4 py-3 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700" required />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Description (Optional)</label>
+                <textarea value={categoryFormData.description} onChange={(e) => setCategoryFormData({...categoryFormData, description: e.target.value})} className="w-full bg-stone-50 border border-stone-100 px-4 py-3 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700 h-24 resize-none" />
+              </div>
+              <div className="flex space-x-4 pt-4">
+                <button type="button" onClick={() => setIsCategoryOpen(false)} className="flex-1 px-6 py-4 rounded-xl font-bold text-stone-500 bg-stone-100 uppercase tracking-widest text-sm">Cancel</button>
+                <button type="submit" disabled={isSaving} className="flex-1 px-6 py-4 rounded-xl font-bold text-white bg-orange-600 uppercase tracking-widest text-sm flex items-center justify-center space-x-2">
+                  {isSaving && <Loader2 size={18} className="animate-spin" />}
+                  <span>{editingCategory ? 'Update' : 'Create'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

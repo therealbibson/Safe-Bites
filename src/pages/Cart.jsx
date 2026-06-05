@@ -15,9 +15,15 @@ const Cart = () => {
 
   const hasOutOfStockItems = cart.some(item => item.isAvailable === false);
   const currency = settings?.currency || '₦';
+  const minQty = settings?.minimumOrderQuantity || 1;
+  const minPrice = settings?.minimumOrderPrice || 0;
+  
+  const isBelowMinQty = cart.reduce((total, item) => total + item.quantity, 0) < minQty;
+  const isBelowMinPrice = cartTotal < minPrice;
+  const canProceed = !hasOutOfStockItems && !isBelowMinQty && !isBelowMinPrice;
 
   const handleProceedToCheckout = () => {
-    if (hasOutOfStockItems) return;
+    if (!canProceed) return;
     if (isAuthenticated) {
       navigate('/checkout');
     } else {
@@ -98,16 +104,33 @@ const Cart = () => {
                 <span className="text-lg sm:text-xl font-black text-stone-800">Grand Total</span>
                 <span className="text-2xl sm:text-4xl font-black text-orange-600">{currency}{grandTotal.toFixed(2)}</span>
               </div>
+
+              {(isBelowMinQty || isBelowMinPrice) && (
+                <div className="mb-6 p-4 bg-orange-50 border border-orange-100 rounded-2xl">
+                  <p className="text-orange-700 text-xs sm:text-sm font-bold flex items-center space-x-2">
+                    <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+                    <span>
+                      {isBelowMinQty && isBelowMinPrice 
+                        ? `Minimum order is ${minQty} items and ${currency}${minPrice.toFixed(2)}.`
+                        : isBelowMinQty 
+                          ? `Minimum order is ${minQty} items.`
+                          : `Minimum order price is ${currency}${minPrice.toFixed(2)}.`
+                      }
+                    </span>
+                  </p>
+                </div>
+              )}
+
               <button 
                 onClick={handleProceedToCheckout}
-                disabled={hasOutOfStockItems}
+                disabled={!canProceed}
                 className={`block text-center w-full py-4 sm:py-6 rounded-[1.5rem] sm:rounded-[2rem] font-black text-lg sm:text-xl shadow-xl transition-all uppercase tracking-widest ${
-                  hasOutOfStockItems 
+                  !canProceed
                     ? 'bg-stone-200 text-stone-400 cursor-not-allowed shadow-none' 
                     : 'bg-orange-500 text-white shadow-orange-200 hover:bg-orange-600'
                 }`}
               >
-                {hasOutOfStockItems ? 'Items Out of Stock' : 'Proceed to Checkout'}
+                {hasOutOfStockItems ? 'Items Out of Stock' : (isBelowMinQty || isBelowMinPrice) ? 'Minimum Not Met' : 'Proceed to Checkout'}
               </button>
             </div>
           </div>
