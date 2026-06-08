@@ -18,8 +18,8 @@ export const SettingsProvider = ({ children }) => {
     maintenanceMode: false
   });
   const [loading, setLoading] = useState(true);
-  const [retryCount, setRetryCount] = React.useRef(0);
-  const [rateLimitReset, setRateLimitReset] = React.useRef(Date.now() + 60000);
+  const retryCount = React.useRef(0);
+  const rateLimitReset = React.useRef(Date.now() + 60000);
 
   const fetchSettings = useCallback(async () => {
     // Skip if rate limited and reset time hasn't passed

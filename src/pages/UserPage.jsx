@@ -36,6 +36,34 @@ const UserPage = () => {
     fetchStats();
   }, [user]);
 
+  const handleUpdatePaymentMethods = async (updatedMethods) => {
+    try {
+      const uId = user?._id || user?.id;
+      if (!uId) throw new Error('Authentication required');
+
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/users/${uId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': uId,
+          'x-user-role': user?.role
+        },
+        body: JSON.stringify({ paymentMethods: updatedMethods }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update payment methods');
+      }
+
+      const updatedUser = await response.json();
+      updateUser({ paymentMethods: updatedUser.paymentMethods });
+    } catch (error) {
+      console.error('Error updating payment methods:', error);
+      alert(error.message || 'Failed to update payment methods. Please try again.');
+    }
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/home');
@@ -265,6 +293,99 @@ const UserPage = () => {
                                 <span>Review Now</span>
                               </button>
                             )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : activeSection === 'payments' ? (
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center mb-2 px-2">
+                    <p className="text-stone-400 font-bold text-xs sm:text-sm">Manage your saved cards and wallets</p>
+                    <button 
+                      onClick={() => {
+                        const type = prompt("Enter card type (visa, mastercard):", "visa");
+                        const last4 = prompt("Enter last 4 digits:", "4242");
+                        const expiry = prompt("Enter expiry date (MM/YY):", "12/25");
+                        if (type && last4 && expiry) {
+                          const newMethod = {
+                            id: Math.random().toString(36).substr(2, 9),
+                            type: type.toLowerCase(),
+                            last4,
+                            expiry,
+                            isDefault: (user.paymentMethods || []).length === 0
+                          };
+                          const updatedMethods = [...(user.paymentMethods || []), newMethod];
+                          handleUpdatePaymentMethods(updatedMethods);
+                        }
+                      }}
+                      className="flex items-center space-x-2 bg-orange-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-orange-700 transition-all shadow-lg shadow-orange-100"
+                    >
+                      <Plus size={14} />
+                      <span>Add New</span>
+                    </button>
+                  </div>
+
+                  {(!user.paymentMethods || user.paymentMethods.length === 0) ? (
+                    <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[2.5rem] border border-dashed border-stone-200">
+                      <CreditCard className="text-stone-200 mb-4" size={48} />
+                      <p className="text-stone-400 font-bold">No payment methods saved</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {user.paymentMethods.map((method) => (
+                        <div 
+                          key={method.id}
+                          className="bg-white p-6 rounded-[2rem] shadow-sm border border-stone-100 flex items-center justify-between group"
+                        >
+                          <div className="flex items-center space-x-4">
+                            <div className="w-12 h-12 bg-stone-50 rounded-xl flex items-center justify-center text-stone-400 uppercase font-black text-[10px]">
+                              {method.type === 'visa' ? (
+                                <span className="text-blue-600 text-lg italic">VISA</span>
+                              ) : method.type === 'mastercard' ? (
+                                <span className="text-red-500 text-lg font-serif">MC</span>
+                              ) : (
+                                <CreditCard size={20} />
+                              )}
+                            </div>
+                            <div>
+                              <div className="flex items-center space-x-2">
+                                <h3 className="font-bold text-stone-800">•••• •••• •••• {method.last4}</h3>
+                                {method.isDefault && (
+                                  <span className="bg-green-100 text-green-600 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest">Default</span>
+                                )}
+                              </div>
+                              <p className="text-stone-400 text-xs font-medium">Expires {method.expiry}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            {!method.isDefault && (
+                              <button 
+                                onClick={() => {
+                                  const updated = user.paymentMethods.map(m => ({
+                                    ...m,
+                                    isDefault: m.id === method.id
+                                  }));
+                                  handleUpdatePaymentMethods(updated);
+                                }}
+                                className="p-2 text-stone-300 hover:text-green-500 transition-colors"
+                                title="Set as default"
+                              >
+                                <CheckCircle2 size={18} />
+                              </button>
+                            )}
+                            <button 
+                              onClick={() => {
+                                if (confirm("Are you sure you want to remove this payment method?")) {
+                                  const updated = user.paymentMethods.filter(m => m.id !== method.id);
+                                  handleUpdatePaymentMethods(updated);
+                                }
+                              }}
+                              className="p-2 text-stone-300 hover:text-red-500 transition-colors"
+                            >
+                              <Trash2 size={18} />
+                            </button>
                           </div>
                         </div>
                       ))}

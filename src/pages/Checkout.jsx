@@ -13,6 +13,7 @@ const Checkout = () => {
   const { settings } = useSettings();
   const [isOrdered, setIsOrdered] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('Cash on Delivery');
 
   const currency = settings?.currency || '₦';
 
@@ -21,6 +22,14 @@ const Checkout = () => {
       navigate('/signin?redirect=checkout');
     }
   }, [isAuthenticated, navigate]);
+
+  useEffect(() => {
+    // If user has a default payment method, select it
+    if (user?.paymentMethods?.length > 0) {
+      const defaultMethod = user.paymentMethods.find(m => m.isDefault) || user.paymentMethods[0];
+      setSelectedPaymentMethod(`Card ending in ${defaultMethod.last4}`);
+    }
+  }, [user]);
 
   useEffect(() => {
     // If cart is empty or below minimums, go back
@@ -53,7 +62,7 @@ const Checkout = () => {
     const orderDetails = {
       deliveryAddress: `${formData.get('address')}, ${formData.get('city')}, ${formData.get('zip')}`,
       phoneNumber: formData.get('phone'),
-      paymentMethod: 'Cash on Delivery',
+      paymentMethod: selectedPaymentMethod,
       totalAmount: grandTotal // Use centralized grand total
     };
     
@@ -128,19 +137,38 @@ const Checkout = () => {
                 <CreditCard className="text-orange-500 mr-2 sm:mr-3" size={20} className="sm:w-6 sm:h-6" />
                 Payment Method
               </h2>
-              <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
-                <div className="flex-1 p-4 sm:p-6 border-2 border-orange-500 bg-orange-50 rounded-[1.5rem] sm:rounded-[2rem] flex flex-col items-center">
-                  <div className="w-8 h-8 sm:w-12 sm:h-12 bg-orange-100 rounded-full flex items-center justify-center mb-2 sm:mb-3">
-                    <span className="font-black text-orange-600 text-sm sm:text-base">{currency}</span>
+              <div className="space-y-3">
+                <div 
+                  onClick={() => setSelectedPaymentMethod('Cash on Delivery')}
+                  className={`p-4 sm:p-6 border-2 rounded-[1.5rem] sm:rounded-[2rem] flex items-center justify-between cursor-pointer transition-all ${selectedPaymentMethod === 'Cash on Delivery' ? 'border-orange-500 bg-orange-50' : 'border-stone-100 bg-white hover:border-orange-200'}`}
+                >
+                  <div className="flex items-center space-x-4">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedPaymentMethod === 'Cash on Delivery' ? 'bg-orange-600 text-white' : 'bg-stone-100 text-stone-400'}`}>
+                      <span className="font-black text-xs">{currency}</span>
+                    </div>
+                    <span className={`text-sm font-black uppercase tracking-wider ${selectedPaymentMethod === 'Cash on Delivery' ? 'text-orange-600' : 'text-stone-500'}`}>Cash on Delivery</span>
                   </div>
-                  <span className="text-[10px] sm:text-sm font-black text-orange-600 uppercase tracking-wider text-center">Cash on Delivery</span>
+                  {selectedPaymentMethod === 'Cash on Delivery' && <div className="w-3 h-3 bg-orange-600 rounded-full"></div>}
                 </div>
-                <div className="flex-1 p-4 sm:p-6 border-2 border-stone-100 rounded-[1.5rem] sm:rounded-[2rem] flex flex-col items-center opacity-40">
-                  <div className="w-8 h-8 sm:w-12 sm:h-12 bg-stone-100 rounded-full flex items-center justify-center mb-2 sm:mb-3">
-                    <CreditCard size={18} className="text-stone-400 sm:w-6 sm:h-6" />
+
+                {user?.paymentMethods?.map((method) => (
+                  <div 
+                    key={method.id}
+                    onClick={() => setSelectedPaymentMethod(`Card ending in ${method.last4}`)}
+                    className={`p-4 sm:p-6 border-2 rounded-[1.5rem] sm:rounded-[2rem] flex items-center justify-between cursor-pointer transition-all ${selectedPaymentMethod === `Card ending in ${method.last4}` ? 'border-orange-500 bg-orange-50' : 'border-stone-100 bg-white hover:border-orange-200'}`}
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center uppercase font-black text-[10px] ${selectedPaymentMethod === `Card ending in ${method.last4}` ? 'bg-orange-600 text-white' : 'bg-stone-100 text-stone-400'}`}>
+                        {method.type === 'visa' ? 'VISA' : method.type === 'mastercard' ? 'MC' : <CreditCard size={16} />}
+                      </div>
+                      <div>
+                        <span className={`text-sm font-black uppercase tracking-wider block ${selectedPaymentMethod === `Card ending in ${method.last4}` ? 'text-orange-600' : 'text-stone-500'}`}>Card ending in {method.last4}</span>
+                        <span className="text-[10px] text-stone-400 font-bold">Expires {method.expiry}</span>
+                      </div>
+                    </div>
+                    {selectedPaymentMethod === `Card ending in ${method.last4}` && <div className="w-3 h-3 bg-orange-600 rounded-full"></div>}
                   </div>
-                  <span className="text-[10px] sm:text-sm font-black text-stone-400 uppercase tracking-wider text-center">Credit Card</span>
-                </div>
+                ))}
               </div>
             </section>
 
