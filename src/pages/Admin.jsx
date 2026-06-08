@@ -5,19 +5,20 @@ import { useSettings } from '../context/SettingsContext';
 import { useNotifications } from '../context/NotificationContext';
 import { 
   LayoutDashboard, Package, Users, ShoppingBag, Settings, Plus, Edit, 
-  Trash2, Loader2, CheckCircle2, Clock, Truck, XCircle, Search, User, Phone, MapPin, CreditCard, Star, Bell, Menu, X, MoreVertical
+  Trash2, Loader2, XCircle, Search, User, Star, Bell, Menu, X, MoreVertical
 } from 'lucide-react';
 import ErrorBoundary from '../components/ErrorBoundary';
 
 const Admin = () => {
   const { user, isAuthenticated } = useAuth();
   const { refreshSettings } = useSettings();
-  const { notifications: adminNotifications, markAsRead, markAllAsRead, refreshNotifications } = useNotifications();
+  const { notifications: adminNotifications, markAsRead, markAllAsRead } = useNotifications();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [foods, setFoods] = useState([]);
   const [orders, setOrders] = useState([]);
   const [users, setUsers] = useState([]);
+  const [recentUsers, setRecentUsers] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [searchUserQuery, setSearchUserQuery] = useState('');
   const [searchFoodQuery, setSearchFoodQuery] = useState('');
@@ -296,6 +297,7 @@ const Admin = () => {
           const statsData = await statsRes.json();
           setAdminStats(statsData.stats);
           setOrders(statsData.recentOrders || []);
+          setRecentUsers(statsData.recentUsers || []);
         }
 
         if (catsRes.ok) {
@@ -435,6 +437,37 @@ const Admin = () => {
       }
     } catch (error) {
       console.error('Error updating user role:', error);
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
+  const handleUpdateUserStatus = async (targetUserId, newStatus) => {
+    if (targetUserId === (user.id || user._id) && newStatus !== 'active') {
+      alert("You cannot suspend yourself.");
+      return;
+    }
+
+    setUpdatingUserId(targetUserId);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/users/${targetUserId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user?.id || user?._id,
+          'x-user-role': user?.role
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (response.ok) {
+        setUsers(users.map(u => u._id === targetUserId ? { ...u, status: newStatus } : u));
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to update user status');
+      }
+    } catch (error) {
+      console.error('Error updating user status:', error);
     } finally {
       setUpdatingUserId(null);
     }
@@ -580,6 +613,34 @@ const Admin = () => {
 
             {!tabLoading && activeTab === 'dashboard' && (
               <div className="space-y-6 sm:space-y-8">
+                {/* Dashboard Search */}
+                <div className="bg-white p-4 rounded-2xl shadow-sm border border-stone-100 flex flex-col sm:flex-row items-center gap-4">
+                  <div className="relative flex-1 w-full">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={20} />
+                    <input 
+                      type="text" 
+                      placeholder="Quick search customers by name or email..." 
+                      className="w-full bg-stone-50 border border-stone-100 pl-12 pr-4 py-3 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          setSearchUserQuery(e.target.value);
+                          setActiveTab('users');
+                        }
+                      }}
+                    />
+                  </div>
+                  <button 
+                    onClick={() => {
+                      const input = document.querySelector('input[placeholder="Quick search customers by name or email..."]');
+                      setSearchUserQuery(input.value);
+                      setActiveTab('users');
+                    }}
+                    className="bg-orange-600 text-white px-6 py-3 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-orange-700 transition-all shadow-md active:scale-95 w-full sm:w-auto"
+                  >
+                    Search Users
+                  </button>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {stats.map((stat, idx) => (
                     <div key={idx} className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-stone-100">
@@ -592,61 +653,121 @@ const Admin = () => {
                   ))}
                 </div>
                 
-                <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-4 sm:p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-xl font-black text-stone-800 uppercase tracking-tight">Recent Orders</h3>
-                    <button onClick={() => setActiveTab('orders')} className="text-orange-600 font-bold text-sm hover:underline">View All</button>
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 sm:gap-8">
+                  {/* Recent Orders */}
+                  <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-4 sm:p-6">
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-xl font-black text-stone-800 uppercase tracking-tight">Recent Orders</h3>
+                      <button onClick={() => setActiveTab('orders')} className="text-orange-600 font-bold text-sm hover:underline">View All</button>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="border-b border-stone-100">
+                            <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Customer</th>
+                            <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Status</th>
+                            <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Amount</th>
+                            <th className="pb-4 font-bold text-stone-400 uppercase text-xs text-right">Date</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-stone-50">
+                          {orders.slice(0, 5).map((order) => (
+                            <tr key={order._id} className="hover:bg-stone-50 transition-colors">
+                              <td className="py-4">
+                                <div className="flex items-center space-x-3">
+                                  <div className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-500 font-bold text-xs overflow-hidden">
+                                    {order.userId?.avatar ? (
+                                      <img src={order.userId.avatar.startsWith('http') || order.userId.avatar.startsWith('data:') ? order.userId.avatar : `${import.meta.env.VITE_API_BASE_URL}${order.userId.avatar}`} alt="" className="w-full h-full object-cover" />
+                                    ) : (
+                                      <User size={14} />
+                                    )}
+                                  </div>
+                                  <div className="flex flex-col">
+                                    <span className="font-bold text-stone-700 text-sm">{order.userId?.name || 'Guest User'}</span>
+                                    <span className="text-[10px] text-stone-400 font-bold uppercase">#{order._id.substring(18)}</span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-4">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                  order.status === 'delivered' ? 'bg-green-100 text-green-700' : 
+                                  order.status === 'cancelled' ? 'bg-red-100 text-red-700' : 
+                                  'bg-orange-100 text-orange-700'
+                                }`}>
+                                  {order.status}
+                                </span>
+                              </td>
+                              <td className="py-4 font-black text-stone-800 text-sm">{settings?.currency || '₦'}{order.totalAmount.toFixed(2)}</td>
+                              <td className="py-4 text-right text-xs font-bold text-stone-500">
+                                {new Date(order.createdAt).toLocaleString()}
+                              </td>
+                            </tr>
+                          ))}
+                          {orders.length === 0 && (
+                            <tr>
+                              <td colSpan="4" className="py-8 text-center text-stone-400 font-bold">No recent orders</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="border-b border-stone-100">
-                          <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Customer</th>
-                          <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Status</th>
-                          <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Amount</th>
-                          <th className="pb-4 font-bold text-stone-400 uppercase text-xs text-right">Date</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-stone-50">
-                        {orders.slice(0, 5).map((order) => (
-                          <tr key={order._id} className="hover:bg-stone-50 transition-colors">
-                            <td className="py-4">
-                              <div className="flex items-center space-x-3">
-                                <div className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-500 font-bold text-xs overflow-hidden">
-                                  {order.userId?.avatar ? (
-                                    <img src={order.userId.avatar.startsWith('http') || order.userId.avatar.startsWith('data:') ? order.userId.avatar : `${import.meta.env.VITE_API_BASE_URL}${order.userId.avatar}`} alt="" className="w-full h-full object-cover" />
-                                  ) : (
-                                    <User size={14} />
-                                  )}
-                                </div>
-                                <div className="flex flex-col">
-                                  <span className="font-bold text-stone-700 text-sm">{order.userId?.name || 'Guest User'}</span>
-                                  <span className="text-[10px] text-stone-400 font-bold uppercase">#{order._id.substring(18)}</span>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="py-4">
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                                order.status === 'delivered' ? 'bg-green-100 text-green-700' : 
-                                order.status === 'cancelled' ? 'bg-red-100 text-red-700' : 
-                                'bg-orange-100 text-orange-700'
-                              }`}>
-                                {order.status}
-                              </span>
-                            </td>
-                            <td className="py-4 font-black text-stone-800 text-sm">{settings?.currency || '₦'}{order.totalAmount.toFixed(2)}</td>
-                            <td className="py-4 text-right text-xs font-bold text-stone-500">
-                              {new Date(order.createdAt).toLocaleString()}
-                            </td>
+
+                  {/* Recent Users */}
+                  <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-4 sm:p-6">
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-xl font-black text-stone-800 uppercase tracking-tight">Recent Users</h3>
+                      <button onClick={() => setActiveTab('users')} className="text-orange-600 font-bold text-sm hover:underline">View All</button>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="border-b border-stone-100">
+                            <th className="pb-4 font-bold text-stone-400 uppercase text-xs">User</th>
+                            <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Status</th>
+                            <th className="pb-4 font-bold text-stone-400 uppercase text-xs text-right">Joined</th>
                           </tr>
-                        ))}
-                        {orders.length === 0 && (
-                          <tr>
-                            <td colSpan="4" className="py-8 text-center text-stone-400 font-bold">No recent orders</td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-stone-50">
+                          {recentUsers.map((u) => (
+                            <tr key={u._id} className="hover:bg-stone-50 transition-colors">
+                              <td className="py-4">
+                                <div className="flex items-center space-x-3">
+                                  <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-xs overflow-hidden">
+                                    {u.avatar ? (
+                                      <img src={u.avatar.startsWith('http') || u.avatar.startsWith('data:') ? u.avatar : `${import.meta.env.VITE_API_BASE_URL}${u.avatar}`} alt="" className="w-full h-full object-cover" />
+                                    ) : (
+                                      u.name.charAt(0).toUpperCase()
+                                    )}
+                                  </div>
+                                  <div className="flex flex-col">
+                                    <span className="font-bold text-stone-700 text-sm">{u.name}</span>
+                                    <span className="text-[10px] text-stone-400 font-bold">{u.email}</span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-4">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                  u.status === 'suspended' ? 'bg-red-100 text-red-700' : 
+                                  u.status === 'pending' ? 'bg-amber-100 text-amber-700' : 
+                                  'bg-green-100 text-green-700'
+                                }`}>
+                                  {u.status || 'pending'}
+                                </span>
+                              </td>
+                              <td className="py-4 text-right text-xs font-bold text-stone-500">
+                                {new Date(u.createdAt).toLocaleDateString()}
+                              </td>
+                            </tr>
+                          ))}
+                          {recentUsers.length === 0 && (
+                            <tr>
+                              <td colSpan="3" className="py-8 text-center text-stone-400 font-bold">No recent users</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -906,6 +1027,8 @@ const Admin = () => {
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs">User</th>
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Joined</th>
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Last Login</th>
+                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Verified</th>
+                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Status</th>
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs text-right">Role</th>
                       </tr>
                     </thead>
@@ -917,7 +1040,7 @@ const Admin = () => {
                               <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-xs overflow-hidden">
                                 {u.avatar ? (
                                   <img 
-                                    src={u.avatar.startsWith('data:') ? u.avatar : `${import.meta.env.VITE_API_BASE_URL}${u.avatar}`} 
+                                    src={u.avatar.startsWith('http') || u.avatar.startsWith('data:') ? u.avatar : `${import.meta.env.VITE_API_BASE_URL}${u.avatar}`} 
                                     alt="" 
                                     className="w-full h-full object-cover"
                                   />
@@ -931,6 +1054,27 @@ const Admin = () => {
                           <td className="py-4 text-xs font-bold text-stone-500">{new Date(u.createdAt).toLocaleDateString()}</td>
                           <td className="py-4 text-xs font-bold text-stone-500">
                             {u.lastLogin ? new Date(u.lastLogin).toLocaleString() : 'Never'}
+                          </td>
+                          <td className="py-4">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${u.isVerified ? 'bg-blue-50 text-blue-600' : 'bg-stone-100 text-stone-400'}`}>
+                              {u.isVerified ? 'Verified' : 'Unverified'}
+                            </span>
+                          </td>
+                          <td className="py-4">
+                            <select 
+                              disabled={updatingUserId === u._id} 
+                              value={u.status || 'pending'} 
+                              onChange={(e) => handleUpdateUserStatus(u._id, e.target.value)} 
+                              className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider outline-none border-none disabled:opacity-50 ${
+                                u.status === 'suspended' ? 'bg-red-100 text-red-700' : 
+                                u.status === 'pending' ? 'bg-amber-100 text-amber-700' : 
+                                'bg-green-100 text-green-700'
+                              }`}
+                            >
+                              <option value="pending">Pending</option>
+                              <option value="active">Active</option>
+                              <option value="suspended">Suspended</option>
+                            </select>
                           </td>
                           <td className="py-4 text-right">
                             <select disabled={updatingUserId === u._id} value={u.role} onChange={(e) => handleUpdateUserRole(u._id, e.target.value)} className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider outline-none border-none disabled:opacity-50 ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>

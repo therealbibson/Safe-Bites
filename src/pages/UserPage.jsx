@@ -189,7 +189,33 @@ const UserPage = () => {
                     <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
                   </div>
                   <div className="pt-2">
-                    <h1 className="text-2xl sm:text-3xl font-black text-stone-800 tracking-tight">{user?.name || 'SafeBite User'}</h1>
+                    <div className="flex flex-col sm:flex-row items-center sm:items-end sm:space-x-3 mb-1">
+                      <h1 className="text-2xl sm:text-3xl font-black text-stone-800 tracking-tight">{user?.name || 'SafeBite User'}</h1>
+                      <div className="flex items-center space-x-1.5 mt-1 sm:mt-0 mb-1">
+                        {user?.isVerified ? (
+                          <div className="flex items-center space-x-1 bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-blue-100">
+                            <CheckCircle2 size={10} />
+                            <span>Verified</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center space-x-2">
+                            <div className="flex items-center space-x-1 bg-stone-100 text-stone-500 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-stone-200">
+                              <Shield size={10} />
+                              <span>Unverified</span>
+                            </div>
+                            <button 
+                              onClick={() => {
+                                sessionStorage.setItem('signupEmail', user.email);
+                                navigate('/verify-otp');
+                              }}
+                              className="text-[10px] font-black text-orange-600 uppercase tracking-widest hover:underline"
+                            >
+                              Verify Now
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                     <p className="text-stone-500 font-medium text-sm sm:text-base">{user?.email}</p>
                     <div className="flex items-center space-x-2 mt-4 justify-center sm:justify-start">
                       <div className="flex items-center space-x-2 bg-orange-600 px-4 py-2 rounded-xl shadow-lg shadow-orange-100">

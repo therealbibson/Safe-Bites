@@ -56,8 +56,9 @@ const SignUp = () => {
       }
 
       const userData = await response.json();
-      login(userData);
-      navigate(`/${redirectPath}`);
+      // Instead of logging in immediately, redirect to OTP verification
+      sessionStorage.setItem('signupEmail', email);
+      navigate('/verify-otp');
     } catch (error) {
       console.error('Signup error:', error);
       setError('An error occurred during signup');
