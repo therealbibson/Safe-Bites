@@ -21,14 +21,13 @@ const ForgotPassword = () => {
         body: JSON.stringify({ email }),
       });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to send reset code');
-      }
-
+      const data = await response.json();
       setSuccess(true);
       // Store email in sessionStorage to pass it to the verification page
       sessionStorage.setItem('resetEmail', email);
+      if (data.otpExpires) {
+        sessionStorage.setItem('otpExpires', data.otpExpires);
+      }
       
       // Auto redirect after 2 seconds
       setTimeout(() => {

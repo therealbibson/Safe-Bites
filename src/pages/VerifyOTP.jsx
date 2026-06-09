@@ -16,7 +16,7 @@ const VerifyOTP = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [step, setStep] = useState(1); // 1: OTP, 2: New Password (for reset type)
-  const [timeLeft, setTimeLeft] = useState(60); // 1 minute in seconds
+  const [timeLeft, setTimeLeft] = useState(90); // 1 minute 30 seconds
   
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -33,6 +33,13 @@ const VerifyOTP = () => {
       navigate('/signin');
     } else {
       setEmail(storedEmail);
+    }
+
+    // Sync timer with backend expiration
+    const expires = sessionStorage.getItem('otpExpires');
+    if (expires) {
+      const remaining = Math.floor((new Date(expires).getTime() - Date.now()) / 1000);
+      setTimeLeft(remaining > 0 ? remaining : 0);
     }
   }, [type, navigate]);
 
@@ -62,12 +69,12 @@ const VerifyOTP = () => {
         body: JSON.stringify({ email, type }),
       });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to resend code');
+      const data = await response.json();
+      if (data.otpExpires) {
+        sessionStorage.setItem('otpExpires', data.otpExpires);
       }
 
-      setTimeLeft(60);
+      setTimeLeft(90);
       setOtp(['', '', '', '', '', '']);
       inputRefs[0].current.focus();
       alert('A new code has been sent to your email.');

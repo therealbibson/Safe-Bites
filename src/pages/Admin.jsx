@@ -5,7 +5,8 @@ import { useSettings } from '../context/SettingsContext';
 import { useNotifications } from '../context/NotificationContext';
 import { 
   LayoutDashboard, Package, Users, ShoppingBag, Settings, Plus, Edit, 
-  Trash2, Loader2, XCircle, Search, User, Star, Bell, Menu, X, MoreVertical
+  Trash2, Loader2, XCircle, Search, User, Star, Bell, Menu, X, MoreVertical,
+  Filter, ArrowUpDown, MessageSquare, Send, Clock, Shield, CheckCircle
 } from 'lucide-react';
 import ErrorBoundary from '../components/ErrorBoundary';
 
@@ -18,10 +19,47 @@ const Admin = () => {
   const [foods, setFoods] = useState([]);
   const [orders, setOrders] = useState([]);
   const [users, setUsers] = useState([]);
+  const [tickets, setTickets] = useState([]);
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [ticketReply, setTicketReply] = useState('');
+  const [isReplying, setIsReplying] = useState(false);
   const [recentUsers, setRecentUsers] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [searchUserQuery, setSearchUserQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sortConfig, setSortConfig] = useState({ key: 'createdAt', direction: 'desc' });
   const [searchFoodQuery, setSearchFoodQuery] = useState('');
+
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const sortedUsers = [...users]
+    .filter(u => {
+      const matchesSearch = u.name.toLowerCase().includes(searchUserQuery.toLowerCase()) || 
+                            u.email.toLowerCase().includes(searchUserQuery.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || (u.status || 'pending') === statusFilter;
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      if (!sortConfig.key) return 0;
+      
+      let valA = a[sortConfig.key];
+      let valB = b[sortConfig.key];
+
+      // Handle nulls
+      if (valA === null || valA === undefined) valA = '';
+      if (valB === null || valB === undefined) valB = '';
+
+      if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+
   const [categories, setCategories] = useState([]);
   const [isCategoryModalOpen, setIsCategoryOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
@@ -345,6 +383,7 @@ const Admin = () => {
         if (activeTab === 'orders') endpoint = 'orders';
         if (activeTab === 'users') endpoint = 'users';
         if (activeTab === 'reviews') endpoint = 'reviews';
+        if (activeTab === 'support') endpoint = 'support/all';
 
         if (endpoint) {
           const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/${endpoint}`, { headers });
@@ -353,6 +392,7 @@ const Admin = () => {
           if (activeTab === 'orders') setOrders(data.orders || data);
           if (activeTab === 'users') setUsers(data);
           if (activeTab === 'reviews') setReviews(data);
+          if (activeTab === 'support') setTickets(data);
         }
       } catch (error) {
         console.error(`Error fetching ${activeTab} data:`, error);
@@ -461,7 +501,18 @@ const Admin = () => {
       });
 
       if (response.ok) {
-        setUsers(users.map(u => u._id === targetUserId ? { ...u, status: newStatus } : u));
+        setUsers(users.map(u => {
+          if (u._id === targetUserId) {
+            const updatedUser = { ...u, status: newStatus };
+            if (newStatus === 'active') {
+              updatedUser.isVerified = true;
+            } else if (newStatus === 'pending') {
+              updatedUser.isVerified = false;
+            }
+            return updatedUser;
+          }
+          return u;
+        }));
       } else {
         const error = await response.json();
         alert(error.error || 'Failed to update user status');
@@ -516,6 +567,77 @@ const Admin = () => {
     }
   };
 
+  const markTicketAsRead = async (ticketId) => {
+    try {
+      await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/support/${ticketId}/read`, {
+        method: 'PATCH',
+        headers: {
+          'x-user-id': user?.id || user?._id,
+          'x-user-role': user?.role
+        }
+      });
+      setTickets(prev => prev.map(t => t._id === ticketId ? { ...t, adminHasUnread: false } : t));
+    } catch (error) {
+      console.error('Error marking ticket as read:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedTicket && selectedTicket.adminHasUnread) {
+      markTicketAsRead(selectedTicket._id);
+    }
+  }, [selectedTicket]);
+
+  const handleAdminReply = async (e) => {
+    e.preventDefault();
+    if (!ticketReply.trim()) return;
+    setIsReplying(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/support/${selectedTicket._id}/responses`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user?.id || user?._id,
+          'x-user-role': user?.role
+        },
+        body: JSON.stringify({ message: ticketReply, status: selectedTicket.status })
+      });
+
+      if (response.ok) {
+        const updatedTicket = await response.json();
+        setSelectedTicket(updatedTicket);
+        setTickets(tickets.map(t => t._id === updatedTicket._id ? updatedTicket : t));
+        setTicketReply('');
+      }
+    } catch (error) {
+      console.error('Error replying to ticket:', error);
+    } finally {
+      setIsReplying(false);
+    }
+  };
+
+  const handleUpdateTicketStatus = async (ticketId, newStatus) => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/support/${ticketId}/responses`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user?.id || user?._id,
+          'x-user-role': user?.role
+        },
+        body: JSON.stringify({ message: `Status updated to ${newStatus}`, status: newStatus })
+      });
+
+      if (response.ok) {
+        const updatedTicket = await response.json();
+        if (selectedTicket?._id === ticketId) setSelectedTicket(updatedTicket);
+        setTickets(tickets.map(t => t._id === ticketId ? updatedTicket : t));
+      }
+    } catch (error) {
+      console.error('Error updating ticket status:', error);
+    }
+  };
+
   if (isAuthenticated && user?.role !== 'admin') {
     return (
       <div className="min-h-screen bg-stone-50 pt-16 flex items-center justify-center">
@@ -564,9 +686,9 @@ const Admin = () => {
 
           {/* Sidebar */}
           <aside className={`
-            fixed lg:sticky top-0 lg:top-24 left-0 h-full lg:h-auto w-64 lg:w-64 
-            bg-white lg:bg-stone-50 z-40 lg:z-20 p-6 lg:p-0 border-r lg:border-none
-            transition-transform duration-300 ease-in-out
+            fixed lg:sticky top-0 lg:top-24 left-0 h-full lg:h-[calc(100vh-6rem)] w-64 lg:w-64 
+            bg-white lg:bg-transparent z-40 lg:z-20 p-6 lg:p-0 border-r lg:border-none
+            transition-transform duration-300 ease-in-out overflow-y-auto
             ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
             flex flex-col gap-2
           `}>
@@ -582,7 +704,18 @@ const Admin = () => {
               { id: 'orders', icon: ShoppingBag, label: 'Orders' },
               { id: 'reviews', icon: Star, label: 'Reviews' },
               { id: 'users', icon: Users, label: 'Users' },
-              { id: 'notifications', icon: Bell, label: 'Notifications' },
+              { 
+                id: 'support', 
+                icon: MessageSquare, 
+                label: 'Support',
+                hasBadge: tickets.some(t => t.adminHasUnread)
+              },
+              { 
+                id: 'notifications', 
+                icon: Bell, 
+                label: 'Notifications',
+                hasBadge: adminNotifications.some(n => !n.isRead && n.type === 'admin_alert')
+              },
               { id: 'settings', icon: Settings, label: 'Settings' }
             ].map((tab) => (
               <button 
@@ -591,14 +724,19 @@ const Admin = () => {
                   setActiveTab(tab.id);
                   setSidebarOpen(false);
                 }}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-bold transition-all text-base ${
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold transition-all text-base ${
                   activeTab === tab.id 
                     ? 'bg-orange-600 text-white shadow-lg' 
                     : 'bg-white lg:bg-transparent text-stone-600 hover:bg-orange-50 border border-stone-100 lg:border-stone-200'
                 }`}
               >
-                <tab.icon size={20} />
-                <span>{tab.label}</span>
+                <div className="flex items-center space-x-3">
+                  <tab.icon size={20} />
+                  <span>{tab.label}</span>
+                </div>
+                {tab.hasBadge && (
+                  <div className={`w-2 h-2 rounded-full ${activeTab === tab.id ? 'bg-white' : 'bg-orange-600'} animate-pulse`} />
+                )}
               </button>
             ))}
           </aside>
@@ -1015,25 +1153,94 @@ const Admin = () => {
               <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-4 sm:p-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
                   <h3 className="text-xl font-black text-stone-800 uppercase tracking-tight">User Management</h3>
-                  <div className="relative w-full sm:w-64">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
-                    <input type="text" placeholder="Search users..." value={searchUserQuery} onChange={(e) => setSearchUserQuery(e.target.value)} className="w-full bg-stone-50 border border-stone-100 pl-10 pr-4 py-2 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700 text-sm" />
+                  <div className="flex items-center gap-3">
+                    {/* Sort Icon */}
+                    <div className="relative group">
+                      <div className="flex items-center bg-stone-50 border border-stone-100 rounded-xl px-3 py-2 hover:border-orange-500 transition-all cursor-pointer">
+                        <ArrowUpDown size={16} className="text-stone-400 mr-2" />
+                        <select 
+                          value={`${sortConfig.key}-${sortConfig.direction}`}
+                          onChange={(e) => {
+                            const [key, direction] = e.target.value.split('-');
+                            setSortConfig({ key, direction });
+                          }}
+                          className="appearance-none bg-transparent outline-none font-bold text-stone-700 text-xs pr-4 cursor-pointer"
+                        >
+                          <option value="createdAt-desc">Newest</option>
+                          <option value="createdAt-asc">Oldest</option>
+                          <option value="name-asc">Name A-Z</option>
+                          <option value="name-desc">Name Z-A</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Filter Icon */}
+                    <div className="relative group">
+                      <div className="flex items-center bg-stone-50 border border-stone-100 rounded-xl px-3 py-2 hover:border-orange-500 transition-all cursor-pointer">
+                        <Filter size={16} className="text-stone-400 mr-2" />
+                        <select 
+                          value={statusFilter}
+                          onChange={(e) => setStatusFilter(e.target.value)}
+                          className="appearance-none bg-transparent outline-none font-bold text-stone-700 text-xs pr-4 cursor-pointer"
+                        >
+                          <option value="all">All Status</option>
+                          <option value="active">Active Only</option>
+                          <option value="pending">Pending Only</option>
+                          <option value="suspended">Suspended Only</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="relative w-full sm:w-64">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
+                      <input type="text" placeholder="Search users..." value={searchUserQuery} onChange={(e) => setSearchUserQuery(e.target.value)} className="w-full bg-stone-50 border border-stone-100 pl-10 pr-4 py-2 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700 text-sm" />
+                    </div>
                   </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
                       <tr className="border-b border-stone-100">
-                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">User</th>
-                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Joined</th>
+                        <th 
+                          className="pb-4 font-bold text-stone-400 uppercase text-xs cursor-pointer hover:text-orange-600 transition-colors"
+                          onClick={() => handleSort('name')}
+                        >
+                          <div className="flex items-center space-x-1">
+                            <span>User</span>
+                            {sortConfig.key === 'name' && (
+                              <span className="text-[10px]">{sortConfig.direction === 'asc' ? '▲' : '▼'}</span>
+                            )}
+                          </div>
+                        </th>
+                        <th 
+                          className="pb-4 font-bold text-stone-400 uppercase text-xs cursor-pointer hover:text-orange-600 transition-colors"
+                          onClick={() => handleSort('createdAt')}
+                        >
+                          <div className="flex items-center space-x-1">
+                            <span>Joined</span>
+                            {sortConfig.key === 'createdAt' && (
+                              <span className="text-[10px]">{sortConfig.direction === 'asc' ? '▲' : '▼'}</span>
+                            )}
+                          </div>
+                        </th>
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Last Login</th>
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Verified</th>
-                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Status</th>
+                        <th 
+                          className="pb-4 font-bold text-stone-400 uppercase text-xs cursor-pointer hover:text-orange-600 transition-colors"
+                          onClick={() => handleSort('status')}
+                        >
+                          <div className="flex items-center space-x-1">
+                            <span>Status</span>
+                            {sortConfig.key === 'status' && (
+                              <span className="text-[10px]">{sortConfig.direction === 'asc' ? '▲' : '▼'}</span>
+                            )}
+                          </div>
+                        </th>
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs text-right">Role</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-50">
-                      {users.filter(u => u.name.toLowerCase().includes(searchUserQuery.toLowerCase()) || u.email.toLowerCase().includes(searchUserQuery.toLowerCase())).map((u) => (
+                      {sortedUsers.map((u) => (
                         <tr key={u._id} className="hover:bg-stone-50 transition-colors">
                           <td className="py-4">
                             <div className="flex items-center space-x-3">
@@ -1056,9 +1263,15 @@ const Admin = () => {
                             {u.lastLogin ? new Date(u.lastLogin).toLocaleString() : 'Never'}
                           </td>
                           <td className="py-4">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${u.isVerified ? 'bg-blue-50 text-blue-600' : 'bg-stone-100 text-stone-400'}`}>
-                              {u.isVerified ? 'Verified' : 'Unverified'}
-                            </span>
+                            {u.status === 'suspended' ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-red-100 text-red-600 border border-red-200">
+                                Suspended
+                              </span>
+                            ) : (
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${u.isVerified ? 'bg-blue-50 text-blue-600' : 'bg-stone-100 text-stone-400'}`}>
+                                {u.isVerified ? 'Verified' : 'Unverified'}
+                              </span>
+                            )}
                           </td>
                           <td className="py-4">
                             <select 
@@ -1153,6 +1366,154 @@ const Admin = () => {
                       )}
                     </tbody>
                   </table>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'support' && (
+              <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-4 sm:p-6 h-[700px] flex flex-col">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                  <h3 className="text-xl font-black text-stone-800 uppercase tracking-tight">Support Management</h3>
+                  <div className="flex items-center space-x-2">
+                    <Filter size={16} className="text-stone-400" />
+                    <select 
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      className="appearance-none bg-stone-50 border border-stone-100 px-4 py-2 rounded-xl outline-none font-bold text-stone-700 text-xs"
+                    >
+                      <option value="all">All Tickets</option>
+                      <option value="open">Open</option>
+                      <option value="in-progress">In-Progress</option>
+                      <option value="resolved">Resolved</option>
+                      <option value="closed">Closed</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex-1 flex gap-6 overflow-hidden">
+                  {/* Ticket List */}
+                  <div className="w-full md:w-1/3 border-r border-stone-100 pr-4 overflow-y-auto space-y-3">
+                    {tickets
+                      .filter(t => statusFilter === 'all' || t.status === statusFilter)
+                      .map((ticket) => (
+                      <div 
+                        key={ticket._id}
+                        onClick={() => setSelectedTicket(ticket)}
+                        className={`p-4 rounded-xl border transition-all cursor-pointer relative ${
+                          selectedTicket?._id === ticket._id 
+                            ? 'bg-orange-600 border-orange-600 text-white shadow-md' 
+                            : 'bg-white border-stone-50 hover:border-orange-200'
+                        }`}
+                      >
+                        {ticket.adminHasUnread && selectedTicket?._id !== ticket._id && (
+                          <div className="absolute top-2 right-2 w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+                        )}
+                        <div className="flex justify-between items-start mb-1">
+                          <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${
+                            selectedTicket?._id === ticket._id ? 'bg-white/20 text-white' : 
+                            ticket.status === 'open' ? 'bg-blue-100 text-blue-600' :
+                            ticket.status === 'resolved' ? 'bg-green-100 text-green-600' : 'bg-stone-100 text-stone-500'
+                          }`}>
+                            {ticket.status}
+                          </span>
+                          <span className={`text-[8px] font-bold ${selectedTicket?._id === ticket._id ? 'text-white/60' : 'text-stone-400'}`}>
+                            {new Date(ticket.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <h4 className="font-bold text-sm truncate">{ticket.subject}</h4>
+                        <p className={`text-[10px] font-bold truncate ${selectedTicket?._id === ticket._id ? 'text-white/70' : 'text-stone-400'}`}>
+                          {ticket.userId?.name || 'Unknown User'}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Conversation View */}
+                  <div className="hidden md:flex flex-1 flex-col overflow-hidden">
+                    {selectedTicket ? (
+                      <>
+                        {/* Selected Ticket Header */}
+                        <div className="pb-4 border-b border-stone-50 flex items-center justify-between">
+                          <div>
+                            <h4 className="font-black text-stone-800 uppercase tracking-tight">{selectedTicket.subject}</h4>
+                            <p className="text-[10px] text-stone-400 font-bold uppercase">Customer: {selectedTicket.userId?.name} ({selectedTicket.userId?.email})</p>
+                          </div>
+                          <select 
+                            value={selectedTicket.status}
+                            onChange={(e) => handleUpdateTicketStatus(selectedTicket._id, e.target.value)}
+                            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none border ${
+                              selectedTicket.status === 'open' ? 'bg-blue-50 border-blue-100 text-blue-600' :
+                              selectedTicket.status === 'resolved' ? 'bg-green-50 border-green-100 text-green-600' :
+                              'bg-stone-50 border-stone-100 text-stone-500'
+                            }`}
+                          >
+                            <option value="open">Open</option>
+                            <option value="in-progress">In-Progress</option>
+                            <option value="resolved">Resolved</option>
+                            <option value="closed">Closed</option>
+                          </select>
+                        </div>
+
+                        {/* Messages Area */}
+                        <div className="flex-1 overflow-y-auto py-6 space-y-4">
+                          {/* Initial Message */}
+                          <div className="flex flex-col items-start max-w-[80%]">
+                            <div className="bg-orange-50 p-4 rounded-2xl rounded-tl-none border border-orange-100">
+                              <p className="text-sm text-stone-700">{selectedTicket.message}</p>
+                            </div>
+                            <span className="text-[9px] font-bold text-stone-400 uppercase mt-1 px-1">Customer • {new Date(selectedTicket.createdAt).toLocaleString()}</span>
+                          </div>
+
+                          {/* Replies */}
+                          {selectedTicket.responses.map((res, i) => {
+                            const isAdmin = res.senderId?.role === 'admin' || res.senderId === user.id || res.senderId === user._id || (res.senderId && res.senderId._id === (user.id || user._id));
+                            return (
+                              <div key={i} className={`flex flex-col ${isAdmin ? 'items-end' : 'items-start'} w-full`}>
+                                <div className={`p-4 rounded-2xl max-w-[80%] border ${
+                                  isAdmin 
+                                    ? 'bg-stone-800 text-white border-stone-800 rounded-tr-none' 
+                                    : 'bg-orange-50 text-stone-700 border-orange-100 rounded-tl-none'
+                                }`}>
+                                  <p className="text-sm">{res.message}</p>
+                                </div>
+                                <div className={`flex items-center space-x-1 mt-1 px-1 ${isAdmin ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                                  <span className="text-[9px] font-bold text-stone-400 uppercase flex items-center gap-1">
+                                    {isAdmin ? 'You (Support)' : 'Customer'} • {new Date(res.createdAt).toLocaleString()}
+                                    {isAdmin && <CheckCircle size={10} className="text-green-500" />}
+                                    {isAdmin && <span className="text-green-500 lowercase font-black">Sent</span>}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Admin Input Area */}
+                        <form onSubmit={handleAdminReply} className="pt-4 border-t border-stone-50">
+                          <div className="relative">
+                            <textarea 
+                              placeholder="Type your response to the customer..."
+                              value={ticketReply}
+                              onChange={(e) => setTicketReply(e.target.value)}
+                              className="w-full bg-stone-50 border border-stone-100 px-4 py-3 pr-12 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700 text-sm h-20 resize-none"
+                            />
+                            <button 
+                              type="submit"
+                              disabled={isReplying || !ticketReply.trim()}
+                              className="absolute right-3 bottom-3 p-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-all active:scale-95"
+                            >
+                              {isReplying ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                            </button>
+                          </div>
+                        </form>
+                      </>
+                    ) : (
+                      <div className="flex-1 flex flex-col items-center justify-center text-center opacity-30">
+                        <MessageSquare size={64} className="mb-4" />
+                        <p className="font-black uppercase tracking-widest text-xs">Select a ticket to manage the conversation</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}

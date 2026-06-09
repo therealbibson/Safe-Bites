@@ -15,6 +15,7 @@ import UserPage from './pages/UserPage';
 import FoodDetail from './pages/FoodDetail';
 import Orders from './pages/Orders';
 import Admin from './pages/Admin';
+import Support from './pages/Support';
 import Maintenance from './pages/Maintenance';
 
 const MaintenanceWrapper = ({ children }) => {
@@ -61,6 +62,7 @@ function App() {
                   <Route path="/food/:id" element={<FoodDetail />} />
                   <Route path="/orders" element={<Orders />} />
                   <Route path="/admin" element={<Admin />} />
+                  <Route path="/support" element={<Support />} />
                   <Route path="/maintenance" element={<Maintenance />} />
                   <Route path="*" element={<Navigate to="/home" replace />} />
                 </Routes>

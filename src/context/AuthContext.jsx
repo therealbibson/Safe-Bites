@@ -62,6 +62,41 @@ export const AuthProvider = ({ children }) => {
     }
   }, [user, logout, updateActivity]);
 
+  // Periodically verify user status from backend
+  useEffect(() => {
+    let intervalId;
+    
+    const verifyStatus = async () => {
+      if (user?._id || user?.id) {
+        try {
+          const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/users/${user._id || user.id}`);
+          if (response.status === 403) {
+            const data = await response.json();
+            if (data.error && data.error.includes('suspended')) {
+              logout();
+              alert('Your account has been suspended. You have been logged out.');
+            }
+          } else if (response.status === 401) {
+            logout();
+          }
+        } catch (error) {
+          console.error('Error verifying user status:', error);
+        }
+      }
+    };
+
+    if (user) {
+      // Check every 5 minutes
+      intervalId = setInterval(verifyStatus, 5 * 60 * 1000);
+      // Also check once on mount if user exists
+      verifyStatus();
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [user, logout]);
+
   const updateUser = (newData) => {
     const updatedUser = { ...user, ...newData };
     setUser(updatedUser);

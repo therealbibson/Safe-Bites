@@ -58,6 +58,9 @@ const SignUp = () => {
       const userData = await response.json();
       // Instead of logging in immediately, redirect to OTP verification
       sessionStorage.setItem('signupEmail', email);
+      if (userData.otpExpires) {
+        sessionStorage.setItem('otpExpires', userData.otpExpires);
+      }
       navigate('/verify-otp');
     } catch (error) {
       console.error('Signup error:', error);

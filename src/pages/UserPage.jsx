@@ -7,7 +7,7 @@ import {
   User, Settings, Bell, Shield, LogOut, ChevronRight, 
   MapPin, CreditCard, ShoppingBag, Camera, Loader2, Star,
   ChevronLeft, Plus, Trash2, Edit2, CheckCircle2, Smartphone, Key,
-  Check
+  Check, MessageSquare
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 
@@ -417,6 +417,55 @@ const UserPage = () => {
                       ))}
                     </div>
                   )}
+                </div>
+              ) : activeSection === 'settings' ? (
+                <div className="space-y-6">
+                  <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-stone-100">
+                    <h3 className="text-sm font-black text-stone-400 uppercase tracking-widest mb-4 px-2">App Support</h3>
+                    <button 
+                      onClick={() => navigate('/support')}
+                      className="w-full flex items-center justify-between p-4 bg-orange-50 rounded-[1.5rem] border border-orange-100 group hover:bg-orange-100 transition-all"
+                    >
+                      <div className="flex items-center space-x-4">
+                        <div className="p-3 bg-white rounded-xl text-orange-600 shadow-sm">
+                          <MessageSquare size={20} />
+                        </div>
+                        <div className="text-left">
+                          <h4 className="font-bold text-stone-800">Help & Support Center</h4>
+                          <p className="text-stone-500 text-xs">Contact us or view your support tickets</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        {notifications.some(n => n.type === 'support_update' && !n.isRead) && (
+                          <div className="bg-orange-600 text-white text-[10px] font-black px-2 py-1 rounded-full animate-pulse">
+                            NEW REPLY
+                          </div>
+                        )}
+                        <ChevronRight size={18} className="text-orange-400 group-hover:translate-x-1 transition-transform" />
+                      </div>
+                    </button>
+                  </div>
+
+                  <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-stone-100">
+                    <h3 className="text-sm font-black text-stone-400 uppercase tracking-widest mb-4 px-2">Personalization</h3>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between p-4 bg-stone-50 rounded-[1.5rem]">
+                        <div className="flex items-center space-x-4">
+                          <div className="p-3 bg-white rounded-xl text-stone-400 shadow-sm">
+                            <Bell size={20} />
+                          </div>
+                          <span className="font-bold text-stone-700">Push Notifications</span>
+                        </div>
+                        <div className="w-12 h-6 bg-orange-600 rounded-full relative">
+                          <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full shadow-sm" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-center justify-center py-10 opacity-50">
+                    <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">SafeBite Version 1.0.2 (Production)</p>
+                  </div>
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[2.5rem] border border-dashed border-stone-200">
