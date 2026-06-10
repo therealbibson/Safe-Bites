@@ -5,17 +5,29 @@ import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 import { ChevronLeft, MapPin, CreditCard, ShoppingBag, Loader2 } from 'lucide-react';
 import Navbar from '../components/Navbar';
+import { usePaystackPayment } from 'react-paystack';
 
 const Checkout = () => {
   const navigate = useNavigate();
-  const { cart, cartTotal, deliveryFee, grandTotal, placeOrder } = useCart();
+  const { cart, cartTotal, deliveryFee, grandTotal, placeOrder, clearCart } = useCart();
   const { isAuthenticated, user } = useAuth();
   const { settings } = useSettings();
   const [isOrdered, setIsOrdered] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('Cash on Delivery');
+  const [orderId, setOrderId] = useState(null);
 
   const currency = settings?.currency || '₦';
+
+  // Paystack Config
+  const paystackConfig = {
+    reference: (new Date()).getTime().toString(),
+    email: user?.email,
+    amount: Math.round(grandTotal * 100), // Paystack expects amount in kobo
+    publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
+  };
+
+  const initializePayment = usePaystackPayment(paystackConfig);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -24,7 +36,6 @@ const Checkout = () => {
   }, [isAuthenticated, navigate]);
 
   useEffect(() => {
-    // If user has a default payment method, select it
     if (user?.paymentMethods?.length > 0) {
       const defaultMethod = user.paymentMethods.find(m => m.isDefault) || user.paymentMethods[0];
       setSelectedPaymentMethod(`Card ending in ${defaultMethod.last4}`);
@@ -32,8 +43,7 @@ const Checkout = () => {
   }, [user]);
 
   useEffect(() => {
-    // If cart is empty or below minimums, go back
-    if (cart.length === 0) {
+    if (cart.length === 0 && !isOrdered) {
       navigate('/cart');
       return;
     }
@@ -46,7 +56,44 @@ const Checkout = () => {
       console.warn('[Checkout] Minimum requirements not met, redirecting to cart');
       navigate('/cart');
     }
-  }, [cart, cartTotal, settings, navigate]);
+  }, [cart, cartTotal, settings, navigate, isOrdered]);
+
+  const verifyPaymentOnBackend = async (reference, orderId) => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/payments/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user?.id || user?._id
+        },
+        body: JSON.stringify({ reference, orderId })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Payment verification failed');
+      }
+
+      setIsOrdered(true);
+      setTimeout(() => {
+        navigate('/orders');
+      }, 3000);
+    } catch (error) {
+      alert(`Verification Error: ${error.message}`);
+    }
+  };
+
+  const onSuccess = (reference) => {
+    console.log('Payment Successful', reference);
+    verifyPaymentOnBackend(reference.reference, orderId);
+  };
+
+  const onClose = () => {
+    console.log('Payment Closed');
+    setIsPlacingOrder(false);
+    alert('Payment was cancelled. You can try again from the orders page.');
+    navigate('/orders');
+  };
 
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
@@ -63,18 +110,26 @@ const Checkout = () => {
       deliveryAddress: `${formData.get('address')}, ${formData.get('city')}, ${formData.get('zip')}`,
       phoneNumber: formData.get('phone'),
       paymentMethod: selectedPaymentMethod,
-      totalAmount: grandTotal // Use centralized grand total
+      totalAmount: grandTotal
     };
     
     try {
-      await placeOrder(orderDetails);
-      setIsOrdered(true);
-      setTimeout(() => {
-        navigate('/orders');
-      }, 3000);
+      const newOrder = await placeOrder(orderDetails);
+      
+      const isCardPayment = selectedPaymentMethod !== 'Cash on Delivery';
+
+      if (isCardPayment) {
+        setOrderId(newOrder.id);
+        // Trigger Paystack
+        initializePayment(onSuccess, onClose);
+      } else {
+        setIsOrdered(true);
+        setTimeout(() => {
+          navigate('/orders');
+        }, 3000);
+      }
     } catch (error) {
       alert(error.message);
-    } finally {
       setIsPlacingOrder(false);
     }
   };
@@ -149,6 +204,19 @@ const Checkout = () => {
                     <span className={`text-sm font-black uppercase tracking-wider ${selectedPaymentMethod === 'Cash on Delivery' ? 'text-orange-600' : 'text-stone-500'}`}>Cash on Delivery</span>
                   </div>
                   {selectedPaymentMethod === 'Cash on Delivery' && <div className="w-3 h-3 bg-orange-600 rounded-full"></div>}
+                </div>
+
+                <div 
+                  onClick={() => setSelectedPaymentMethod('Pay with Card')}
+                  className={`p-4 sm:p-6 border-2 rounded-[1.5rem] sm:rounded-[2rem] flex items-center justify-between cursor-pointer transition-all ${selectedPaymentMethod === 'Pay with Card' ? 'border-orange-500 bg-orange-50' : 'border-stone-100 bg-white hover:border-orange-200'}`}
+                >
+                  <div className="flex items-center space-x-4">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedPaymentMethod === 'Pay with Card' ? 'bg-orange-600 text-white' : 'bg-stone-100 text-stone-400'}`}>
+                      <CreditCard size={20} />
+                    </div>
+                    <span className={`text-sm font-black uppercase tracking-wider ${selectedPaymentMethod === 'Pay with Card' ? 'text-orange-600' : 'text-stone-500'}`}>Pay with Paystack</span>
+                  </div>
+                  {selectedPaymentMethod === 'Pay with Card' && <div className="w-3 h-3 bg-orange-600 rounded-full"></div>}
                 </div>
 
                 {user?.paymentMethods?.map((method) => (
