@@ -5,7 +5,6 @@ import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 import { ChevronLeft, MapPin, CreditCard, ShoppingBag, Loader2 } from 'lucide-react';
 import Navbar from '../components/Navbar';
-import { usePaystackPayment } from 'react-paystack';
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -18,16 +17,6 @@ const Checkout = () => {
   const [orderId, setOrderId] = useState(null);
 
   const currency = settings?.currency || '₦';
-
-  // Paystack Config
-  const paystackConfig = {
-    reference: (new Date()).getTime().toString(),
-    email: user?.email,
-    amount: Math.round(grandTotal * 100), // Paystack expects amount in kobo
-    publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
-  };
-
-  const initializePayment = usePaystackPayment(paystackConfig);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -58,7 +47,7 @@ const Checkout = () => {
     }
   }, [cart, cartTotal, settings, navigate, isOrdered]);
 
-  const verifyPaymentOnBackend = async (reference, orderId) => {
+  const verifyPaymentOnBackend = async (reference, currentOrderId) => {
     try {
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/payments/verify`, {
         method: 'POST',
@@ -66,7 +55,7 @@ const Checkout = () => {
           'Content-Type': 'application/json',
           'x-user-id': user?.id || user?._id
         },
-        body: JSON.stringify({ reference, orderId })
+        body: JSON.stringify({ reference, orderId: currentOrderId })
       });
 
       if (!response.ok) {
@@ -81,18 +70,6 @@ const Checkout = () => {
     } catch (error) {
       alert(`Verification Error: ${error.message}`);
     }
-  };
-
-  const onSuccess = (reference) => {
-    console.log('Payment Successful', reference);
-    verifyPaymentOnBackend(reference.reference, orderId);
-  };
-
-  const onClose = () => {
-    console.log('Payment Closed');
-    setIsPlacingOrder(false);
-    alert('Payment was cancelled. You can try again from the orders page.');
-    navigate('/orders');
   };
 
   const handlePlaceOrder = async (e) => {
@@ -120,8 +97,36 @@ const Checkout = () => {
 
       if (isCardPayment) {
         setOrderId(newOrder.id);
-        // Trigger Paystack
-        initializePayment(onSuccess, onClose);
+        
+        // Launch Paystack directly using the Inline JS
+        // This is more reliable for dynamic metadata than the React hook
+        const handler = window.PaystackPop.setup({
+          key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
+          email: user?.email,
+          amount: Math.round(grandTotal * 100),
+          ref: `SB-${Date.now()}-${newOrder.id.slice(-4)}`,
+          metadata: {
+            orderId: newOrder.id,
+            custom_fields: [
+              {
+                display_name: "Order ID",
+                variable_name: "order_id",
+                value: newOrder.id
+              }
+            ]
+          },
+          callback: (response) => {
+            console.log('[Checkout] Payment Success:', response);
+            verifyPaymentOnBackend(response.reference, newOrder.id);
+          },
+          onClose: () => {
+            setIsPlacingOrder(false);
+            // If they close, let them try again from the checkout or go to orders
+            alert('Payment window closed. If you already paid, please check your orders page.');
+            navigate('/orders');
+          }
+        });
+        handler.openIframe();
       } else {
         setIsOrdered(true);
         setTimeout(() => {
