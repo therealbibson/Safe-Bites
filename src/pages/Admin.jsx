@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
@@ -29,6 +29,50 @@ const Admin = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortConfig, setSortConfig] = useState({ key: 'createdAt', direction: 'desc' });
   const [searchFoodQuery, setSearchFoodQuery] = useState('');
+  const [categories, setCategories] = useState([]);
+  const [isCategoryModalOpen, setIsCategoryOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [categoryFormData, setCategoryFormData] = useState({ name: '', description: '' });
+  const [settings, setSettings] = useState({
+    storeName: 'SafeBite',
+    contactEmail: 'support@safebite.com',
+    contactPhone: '+234 800 SAFEBITE',
+    currency: '₦',
+    deliveryFee: 2.0,
+    minimumOrderQuantity: 1,
+    minimumOrderPrice: 0,
+    isOpen: true,
+    openingHours: '08:00 AM - 10:00 PM',
+    maintenanceMode: false,
+    foodSortBy: 'default'
+  });
+  const [adminStats, setAdminStats] = useState({
+    totalRevenue: 0,
+    totalOrders: 0,
+    totalFoods: 0,
+    totalUsers: 0
+  });
+  const [loading, setLoading] = useState(true);
+  const [tabLoading, setTabLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [updatingOrderId, setUpdatingOrderId] = useState(null);
+  const [updatingUserId, setUpdatingUserId] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [editingFood, setEditingFood] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    price: '',
+    category: 'All',
+    imageUrl: '',
+    description: '',
+    stock: 0,
+    isAvailable: true,
+    calories: 0,
+    time: '15-20 min'
+  });
 
   const handleSort = (key) => {
     let direction = 'asc';
@@ -60,10 +104,48 @@ const Admin = () => {
       return 0;
     });
 
-  const [categories, setCategories] = useState([]);
-  const [isCategoryModalOpen, setIsCategoryOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState(null);
-  const [categoryFormData, setCategoryFormData] = useState({ name: '', description: '' });
+  const sortedFoods = useMemo(() => {
+    return [...foods]
+      .filter(product => 
+        product.name.toLowerCase().includes(searchFoodQuery.toLowerCase()) || 
+        product.category.toLowerCase().includes(searchFoodQuery.toLowerCase())
+      )
+      .sort((a, b) => {
+        // Always put out of stock items at the bottom
+        if (a.isAvailable !== b.isAvailable) {
+          return a.isAvailable ? -1 : 1;
+        }
+
+        const sortBy = settings?.foodSortBy || 'default';
+        
+        switch (sortBy) {
+          case 'name-asc':
+            return a.name.localeCompare(b.name);
+          case 'name-desc':
+            return b.name.localeCompare(a.name);
+          case 'category-asc':
+            return a.category.localeCompare(b.category);
+          case 'category-desc':
+            return b.category.localeCompare(a.category);
+          case 'price-low':
+            return a.price - b.price;
+          case 'price-high':
+            return b.price - a.price;
+          case 'newest':
+            return new Date(b.createdAt) - new Date(a.createdAt);
+          case 'order-asc':
+            return (a.sortOrder || 0) - (b.sortOrder || 0);
+          case 'order-desc':
+            return (b.sortOrder || 0) - (a.sortOrder || 0);
+          case 'default':
+          default:
+            const orderA = a.sortOrder || 0;
+            const orderB = b.sortOrder || 0;
+            if (orderA !== orderB) return orderA - orderB;
+            return new Date(b.createdAt) - new Date(a.createdAt);
+        }
+      });
+  }, [foods, searchFoodQuery, settings?.foodSortBy]);
 
   const handleOpenCategoryModal = (cat = null) => {
     if (cat) {
@@ -133,45 +215,6 @@ const Admin = () => {
       console.error('Error deleting category:', error);
     }
   };
-  const [settings, setSettings] = useState({
-    storeName: 'SafeBite',
-    contactEmail: 'support@safebite.com',
-    contactPhone: '+234 800 SAFEBITE',
-    currency: '₦',
-    deliveryFee: 2.0,
-    minimumOrderQuantity: 1,
-    minimumOrderPrice: 0,
-    isOpen: true,
-    openingHours: '08:00 AM - 10:00 PM',
-    maintenanceMode: false
-  });
-  const [adminStats, setAdminStats] = useState({
-    totalRevenue: 0,
-    totalOrders: 0,
-    totalFoods: 0,
-    totalUsers: 0
-  });
-  const [loading, setLoading] = useState(true);
-  const [tabLoading, setTabLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [deletingId, setDeletingId] = useState(null);
-  const [updatingOrderId, setUpdatingOrderId] = useState(null);
-  const [updatingUserId, setUpdatingUserId] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [editingFood, setEditingFood] = useState(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    price: '',
-    category: 'All',
-    imageUrl: '',
-    description: '',
-    stock: 0,
-    isAvailable: true,
-    calories: 0,
-    time: '15-20 min'
-  });
 
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
@@ -567,6 +610,28 @@ const Admin = () => {
     }
   };
 
+  const handleGlobalSortChange = async (newSort) => {
+    try {
+      const payload = { ...settings, foodSortBy: newSort };
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/settings`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user?.id || user?._id,
+          'x-user-role': user?.role
+        },
+        body: JSON.stringify(payload)
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSettings(data);
+        if (refreshSettings) refreshSettings();
+      }
+    } catch (error) {
+      console.error('Error updating global sort:', error);
+    }
+  };
+
   const markTicketAsRead = async (ticketId) => {
     try {
       await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/support/${ticketId}/read`, {
@@ -947,6 +1012,21 @@ const Admin = () => {
                     <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Opening Hours</label>
                     <input type="text" value={settings.openingHours} onChange={(e) => setSettings({...settings, openingHours: e.target.value})} className="w-full bg-stone-50 border border-stone-100 px-4 py-3 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700" />
                   </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Food Display Sorting (Home)</label>
+                    <select value={settings.foodSortBy || 'default'} onChange={(e) => setSettings({...settings, foodSortBy: e.target.value})} className="w-full bg-stone-50 border border-stone-100 px-4 py-3 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700">
+                      <option value="default">Default (Manual Sort Order)</option>
+                      <option value="name-asc">Alphabetical (A-Z)</option>
+                      <option value="name-desc">Alphabetical (Z-A)</option>
+                      <option value="category-asc">By Category (A-Z)</option>
+                      <option value="category-desc">By Category (Z-A)</option>
+                      <option value="price-low">Price: Low to High</option>
+                      <option value="price-high">Price: High to Low</option>
+                      <option value="newest">Newest First</option>
+                      <option value="order-asc">Sort Order (0-9)</option>
+                      <option value="order-desc">Sort Order (9-0)</option>
+                    </select>
+                  </div>
                   <div className="flex items-center space-x-4">
                     <div onClick={() => setSettings({...settings, isOpen: !settings.isOpen})} className={`flex items-center p-3 rounded-xl border cursor-pointer transition-all flex-1 h-[50px] ${settings.isOpen ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
                       <div className={`w-10 h-5 rounded-full relative transition-colors ${settings.isOpen ? 'bg-green-500' : 'bg-red-500'}`}>
@@ -978,15 +1058,40 @@ const Admin = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
                   <div className="flex flex-col space-y-2">
                     <h3 className="text-xl font-black text-stone-800 uppercase tracking-tight">Product Management</h3>
-                    <div className="relative w-full sm:w-64">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
-                      <input 
-                        type="text"
-                        placeholder="Search products..."
-                        value={searchFoodQuery}
-                        onChange={(e) => setSearchFoodQuery(e.target.value)}
-                        className="w-full bg-stone-50 border border-stone-100 pl-10 pr-4 py-2 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700 text-sm"
-                      />
+                    <div className="flex items-center gap-3">
+                      <div className="relative w-full sm:w-64">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
+                        <input 
+                          type="text"
+                          placeholder="Search products..."
+                          value={searchFoodQuery}
+                          onChange={(e) => setSearchFoodQuery(e.target.value)}
+                          className="w-full bg-stone-50 border border-stone-100 pl-10 pr-4 py-2 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700 text-sm"
+                        />
+                      </div>
+                      
+                      {/* Global Sort Selector */}
+                      <div className="relative group hidden md:block">
+                        <div className="flex items-center bg-stone-50 border border-stone-100 rounded-xl px-3 py-2 hover:border-orange-500 transition-all cursor-pointer">
+                          <ArrowUpDown size={16} className="text-stone-400 mr-2" />
+                          <select 
+                            value={settings.foodSortBy || 'default'}
+                            onChange={(e) => handleGlobalSortChange(e.target.value)}
+                            className="appearance-none bg-transparent outline-none font-bold text-stone-700 text-xs pr-4 cursor-pointer"
+                          >
+                            <option value="default">Default Sort</option>
+                            <option value="name-asc">Name A-Z</option>
+                            <option value="name-desc">Name Z-A</option>
+                            <option value="category-asc">Category A-Z</option>
+                            <option value="category-desc">Category Z-A</option>
+                            <option value="price-low">Price Low-High</option>
+                            <option value="price-high">Price High-Low</option>
+                            <option value="newest">Newest First</option>
+                            <option value="order-asc">Sort Order Asc</option>
+                            <option value="order-desc">Sort Order Desc</option>
+                          </select>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   <button onClick={() => handleOpenModal()} className="bg-orange-600 text-white px-5 py-3 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 hover:bg-orange-700 transition-all shadow-md active:scale-95 self-start sm:self-center">
@@ -996,9 +1101,7 @@ const Admin = () => {
                 </div>
                 
                 <div className="block sm:hidden space-y-3">
-                  {foods
-                    .filter(product => product.name.toLowerCase().includes(searchFoodQuery.toLowerCase()) || product.category.toLowerCase().includes(searchFoodQuery.toLowerCase()))
-                    .map((product) => (
+                  {sortedFoods.map((product) => (
                     <div key={product._id} className="border border-stone-100 rounded-xl p-3 flex items-center space-x-3 bg-stone-50/50">
                       <div className="w-14 h-14 bg-stone-100 rounded-lg overflow-hidden flex-shrink-0">
                         <img src={product.imageUrl?.startsWith('http') || product.imageUrl?.startsWith('data:') ? product.imageUrl : `${import.meta.env.VITE_API_BASE_URL}${product.imageUrl}`} alt={product.name} className="w-full h-full object-cover" />
@@ -1027,16 +1130,47 @@ const Admin = () => {
                   <table className="w-full text-left">
                     <thead>
                       <tr className="border-b border-stone-100">
-                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Product</th>
-                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Category</th>
-                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Price</th>
+                        <th 
+                          className="pb-4 font-bold text-stone-400 uppercase text-xs cursor-pointer hover:text-orange-600 transition-colors"
+                          onClick={() => handleGlobalSortChange(settings.foodSortBy === 'name-asc' ? 'name-desc' : 'name-asc')}
+                        >
+                          <div className="flex items-center space-x-1">
+                            <span>Product</span>
+                            <ArrowUpDown size={12} className={settings.foodSortBy?.startsWith('name') ? 'text-orange-500' : ''} />
+                          </div>
+                        </th>
+                        <th 
+                          className="pb-4 font-bold text-stone-400 uppercase text-xs cursor-pointer hover:text-orange-600 transition-colors"
+                          onClick={() => handleGlobalSortChange(settings.foodSortBy === 'category-asc' ? 'category-desc' : 'category-asc')}
+                        >
+                          <div className="flex items-center space-x-1">
+                            <span>Category</span>
+                            <ArrowUpDown size={12} className={settings.foodSortBy?.startsWith('category') ? 'text-orange-500' : ''} />
+                          </div>
+                        </th>
+                        <th 
+                          className="pb-4 font-bold text-stone-400 uppercase text-xs cursor-pointer hover:text-orange-600 transition-colors"
+                          onClick={() => handleGlobalSortChange(settings.foodSortBy === 'order-asc' ? 'order-desc' : 'order-asc')}
+                        >
+                          <div className="flex items-center space-x-1">
+                            <span>Order</span>
+                            <ArrowUpDown size={12} className={settings.foodSortBy?.startsWith('order') ? 'text-orange-500' : ''} />
+                          </div>
+                        </th>
+                        <th 
+                          className="pb-4 font-bold text-stone-400 uppercase text-xs cursor-pointer hover:text-orange-600 transition-colors"
+                          onClick={() => handleGlobalSortChange(settings.foodSortBy === 'price-low' ? 'price-high' : 'price-low')}
+                        >
+                          <div className="flex items-center space-x-1">
+                            <span>Price</span>
+                            <ArrowUpDown size={12} className={settings.foodSortBy?.startsWith('price') ? 'text-orange-500' : ''} />
+                          </div>
+                        </th>
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-50">
-                      {foods
-                        .filter(product => product.name.toLowerCase().includes(searchFoodQuery.toLowerCase()) || product.category.toLowerCase().includes(searchFoodQuery.toLowerCase()))
-                        .map((product) => (
+                      {sortedFoods.map((product) => (
                         <tr key={product._id} className="hover:bg-stone-50 transition-colors">
                           <td className="py-4 flex items-center space-x-3">
                             <div className="w-10 h-10 bg-stone-100 rounded-lg overflow-hidden flex-shrink-0">
@@ -1050,6 +1184,7 @@ const Admin = () => {
                             </div>
                           </td>
                           <td className="py-4 text-stone-600 text-sm font-medium">{product.category}</td>
+                          <td className="py-4 text-stone-600 text-sm font-black">{product.sortOrder || 0}</td>
                           <td className="py-4 font-black text-stone-800">{settings?.currency || '₦'}{product.price.toFixed(2)}</td>
                           <td className="py-4 text-right">
                             <div className="flex items-center justify-end space-x-2">

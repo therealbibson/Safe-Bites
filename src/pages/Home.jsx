@@ -5,8 +5,10 @@ import { AnimatePresence } from 'framer-motion';
 import Navbar from '../components/Navbar';
 import FoodCard from '../components/FoodCard';
 import Marquee from '../components/Marquee';
+import { useSettings } from '../context/SettingsContext';
 
 const Home = () => {
+  const { settings } = useSettings();
   const [foods, setFoods] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('All');
@@ -92,12 +94,42 @@ const Home = () => {
       return matchesCategory && matchesSearch;
     });
 
-    // Sort by availability: available items first, then out of stock
     return result.sort((a, b) => {
-      if (a.isAvailable === b.isAvailable) return 0;
-      return a.isAvailable ? -1 : 1;
+      // Always put out of stock items at the bottom
+      if (a.isAvailable !== b.isAvailable) {
+        return a.isAvailable ? -1 : 1;
+      }
+
+      const sortBy = settings?.foodSortBy || 'default';
+      
+      switch (sortBy) {
+        case 'name-asc':
+          return a.name.localeCompare(b.name);
+        case 'name-desc':
+          return b.name.localeCompare(a.name);
+        case 'category-asc':
+          return a.category.localeCompare(b.category);
+        case 'category-desc':
+          return b.category.localeCompare(a.category);
+        case 'price-low':
+          return a.price - b.price;
+        case 'price-high':
+          return b.price - a.price;
+        case 'newest':
+          return new Date(b.createdAt) - new Date(a.createdAt);
+        case 'order-asc':
+          return (a.sortOrder || 0) - (b.sortOrder || 0);
+        case 'order-desc':
+          return (b.sortOrder || 0) - (a.sortOrder || 0);
+        case 'default':
+        default:
+          const orderA = a.sortOrder || 0;
+          const orderB = b.sortOrder || 0;
+          if (orderA !== orderB) return orderA - orderB;
+          return new Date(b.createdAt) - new Date(a.createdAt);
+      }
     });
-  }, [activeCategory, searchQuery, foods]);
+  }, [activeCategory, searchQuery, foods, settings?.foodSortBy]);
 
   return (
     <div className="min-h-screen bg-stone-50 pb-20 overflow-x-hidden pt-16">
