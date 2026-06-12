@@ -6,7 +6,7 @@ import { useNotifications } from '../context/NotificationContext';
 import { 
   LayoutDashboard, Package, Users, ShoppingBag, Settings, Plus, Edit, 
   Trash2, Loader2, XCircle, Search, User, Star, Bell, Menu, X, MoreVertical,
-  Filter, ArrowUpDown, MessageSquare, Send, Clock, Shield, CheckCircle
+  Filter, ArrowUpDown, MessageSquare, Send, Clock, Shield, CheckCircle, ChevronLeft
 } from 'lucide-react';
 import ErrorBoundary from '../components/ErrorBoundary';
 
@@ -18,6 +18,7 @@ const Admin = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [foods, setFoods] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [ordersPagination, setOrdersPagination] = useState({ page: 1, pages: 1, total: 0 });
   const [users, setUsers] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [selectedTicket, setSelectedTicket] = useState(null);
@@ -73,6 +74,10 @@ const Admin = () => {
     calories: 0,
     time: '15-20 min'
   });
+
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('all');
+  const [orderStatusFilter, setOrderStatusFilter] = useState('all');
+  const [orderSearchQuery, setOrderSearchQuery] = useState('');
 
   const handleSort = (key) => {
     let direction = 'asc';
@@ -377,7 +382,11 @@ const Admin = () => {
         if (statsRes.ok) {
           const statsData = await statsRes.json();
           setAdminStats(statsData.stats);
-          setOrders(statsData.recentOrders || []);
+          
+          // Use a consistent source for all order views
+          const initialOrders = statsData.recentOrders || [];
+          setOrders(initialOrders);
+          
           setRecentUsers(statsData.recentUsers || []);
         }
 
@@ -411,6 +420,31 @@ const Admin = () => {
   }, [isAuthenticated, user]);
 
   useEffect(() => {
+    const fetchDashboardData = async () => {
+      if (activeTab !== 'dashboard' || !isAuthenticated || user?.role !== 'admin') return;
+      
+      try {
+        const headers = {
+          'x-user-id': user?.id || user?._id,
+          'x-user-role': user?.role || 'admin'
+        };
+
+        const statsRes = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/admin/stats`, { headers });
+        if (statsRes.ok) {
+          const statsData = await statsRes.json();
+          setAdminStats(statsData.stats);
+          setOrders(statsData.recentOrders || []);
+          setRecentUsers(statsData.recentUsers || []);
+        }
+      } catch (error) {
+        console.error('Error refreshing dashboard:', error);
+      }
+    };
+
+    fetchDashboardData();
+  }, [activeTab, isAuthenticated, user]);
+
+  useEffect(() => {
     const fetchTabData = async () => {
       if (activeTab === 'dashboard' || activeTab === 'settings' || !isAuthenticated || user?.role !== 'admin') return;
       
@@ -418,21 +452,29 @@ const Admin = () => {
       try {
         const headers = {
           'x-user-id': user?.id || user?._id,
-          'x-user-role': user?.role
+          'x-user-role': user?.role || 'admin'
         };
 
         let endpoint = '';
         if (activeTab === 'products') endpoint = 'foods';
-        if (activeTab === 'orders') endpoint = 'orders';
+        if (activeTab === 'orders') endpoint = `orders?page=${ordersPagination.page}&limit=50`;
         if (activeTab === 'users') endpoint = 'users';
         if (activeTab === 'reviews') endpoint = 'reviews';
         if (activeTab === 'support') endpoint = 'support/all';
 
         if (endpoint) {
-          const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/${endpoint}`, { headers });
+          const url = `${import.meta.env.VITE_API_BASE_URL}/api/${endpoint}`;
+            
+          const res = await fetch(url, { headers });
           const data = await res.json();
+          
           if (activeTab === 'products') setFoods(data);
-          if (activeTab === 'orders') setOrders(data.orders || data);
+          if (activeTab === 'orders') {
+            console.log('[Admin] Orders response:', data);
+            const ordersList = data.orders || (Array.isArray(data) ? data : []);
+            setOrders(ordersList);
+            if (data.pagination) setOrdersPagination(data.pagination);
+          }
           if (activeTab === 'users') setUsers(data);
           if (activeTab === 'reviews') setReviews(data);
           if (activeTab === 'support') setTickets(data);
@@ -445,7 +487,23 @@ const Admin = () => {
     };
 
     fetchTabData();
-  }, [activeTab, isAuthenticated, user]);
+  }, [activeTab, isAuthenticated, user, ordersPagination.page]);
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter(order => {
+      const matchesPaymentStatus = paymentStatusFilter === 'all' || order.paymentStatus === paymentStatusFilter;
+      const matchesOrderStatus = orderStatusFilter === 'all' || order.status === orderStatusFilter;
+      
+      const searchLower = orderSearchQuery.toLowerCase();
+      const matchesSearch = 
+        (order.userId?.name || '').toLowerCase().includes(searchLower) ||
+        (order.userId?.email || '').toLowerCase().includes(searchLower) ||
+        order._id.toLowerCase().includes(searchLower) ||
+        (order.phoneNumber || '').includes(orderSearchQuery);
+
+      return matchesPaymentStatus && matchesOrderStatus && matchesSearch;
+    });
+  }, [orders, paymentStatusFilter, orderStatusFilter, orderSearchQuery]);
 
   const stats = [
     { label: 'Total Revenue', value: `${settings?.currency || '₦'}${(adminStats?.totalRevenue || 0).toFixed(2)}`, icon: LayoutDashboard, color: 'bg-blue-500' },
@@ -486,7 +544,9 @@ const Admin = () => {
         },
         body: JSON.stringify({ status: newStatus })
       });
-      if (response.ok) setOrders(orders.map(o => o._id === orderId ? { ...o, status: newStatus } : o));
+      if (response.ok) {
+        setOrders(orders.map(o => o._id === orderId ? { ...o, status: newStatus } : o));
+      }
     } catch (error) {
       console.error('Error updating status:', error);
     } finally {
@@ -874,7 +934,7 @@ const Admin = () => {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-stone-50">
-                          {orders.slice(0, 5).map((order) => (
+                          {orders.slice(0, 10).map((order) => (
                             <tr key={order._id} className="hover:bg-stone-50 transition-colors">
                               <td className="py-4">
                                 <div className="flex items-center space-x-3">
@@ -895,6 +955,7 @@ const Admin = () => {
                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
                                   order.status === 'delivered' ? 'bg-green-100 text-green-700' : 
                                   order.status === 'cancelled' ? 'bg-red-100 text-red-700' : 
+                                  order.status === 'failed' ? 'bg-red-100 text-red-700' : 
                                   'bg-orange-100 text-orange-700'
                                 }`}>
                                   {order.status}
@@ -1211,7 +1272,22 @@ const Admin = () => {
                     <span>Add New Category</span>
                   </button>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="block sm:hidden space-y-3">
+                  {categories.map((cat) => (
+                    <div key={cat._id} className="border border-stone-100 rounded-xl p-4 bg-stone-50/50">
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-bold text-stone-800 text-base">{cat.name}</h4>
+                        <div className="flex items-center space-x-1">
+                          <button onClick={() => handleOpenCategoryModal(cat)} className="p-2 text-blue-600 bg-blue-50 rounded-lg active:scale-90"><Edit size={16} /></button>
+                          <button onClick={() => handleDeleteCategory(cat._id)} className="p-2 text-red-600 bg-red-50 rounded-lg active:scale-90"><Trash2 size={16} /></button>
+                        </div>
+                      </div>
+                      <p className="text-stone-500 text-xs leading-relaxed">{cat.description || 'No description provided'}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="hidden sm:block overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
                       <tr className="border-b border-stone-100">
@@ -1241,20 +1317,101 @@ const Admin = () => {
 
             {activeTab === 'orders' && (
               <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-4 sm:p-6">
-                <h3 className="text-xl font-black text-stone-800 uppercase tracking-tight mb-6">Order Management</h3>
-                <div className="overflow-x-auto">
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between mb-6 gap-4">
+                  <h3 className="text-xl font-black text-stone-800 uppercase tracking-tight">Order Management</h3>
+                  
+                  <div className="flex flex-col md:flex-row items-center gap-3">
+                    {/* Order Search */}
+                    <div className="relative w-full md:w-64">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
+                      <input 
+                        type="text"
+                        placeholder="Search by name, email or ID..."
+                        value={orderSearchQuery}
+                        onChange={(e) => setOrderSearchQuery(e.target.value)}
+                        className="w-full bg-stone-50 border border-stone-100 pl-10 pr-4 py-2 rounded-xl outline-none focus:border-orange-500 font-bold text-stone-700 text-xs"
+                      />
+                    </div>
+
+                    {/* Order Status Filter */}
+                    <div className="flex items-center space-x-2 w-full md:w-auto">
+                      <Filter size={14} className="text-stone-400" />
+                      <select 
+                        value={orderStatusFilter}
+                        onChange={(e) => setOrderStatusFilter(e.target.value)}
+                        className="appearance-none bg-stone-50 border border-stone-100 px-3 py-2 rounded-xl outline-none font-bold text-stone-700 text-[10px] flex-1 md:flex-none"
+                      >
+                        <option value="all">All Order Status</option>
+                        {["pending", "confirmed", "preparing", "out_for_delivery", "delivered", "cancelled", "failed"].map(s => (
+                          <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div className="block sm:hidden space-y-3">
+                  {filteredOrders.map((order) => (
+                    <div key={order._id} className="border border-stone-100 rounded-xl p-4 bg-stone-50/50">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex flex-col">
+                          <span className="font-black text-stone-800 text-sm">{order.userId?.name || 'Guest User'}</span>
+                          <span className="text-[10px] text-stone-400 font-bold uppercase tracking-tight">#{order._id.substring(18)}</span>
+                        </div>
+                        <button onClick={() => setSelectedOrder(order)} className="text-orange-600 font-bold text-xs uppercase tracking-widest hover:underline">Details</button>
+                      </div>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-stone-400 font-bold uppercase">Date</span>
+                          <span className="text-xs font-medium text-stone-600">{new Date(order.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span className="text-[10px] text-stone-400 font-bold uppercase">Payment</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${
+                            order.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 
+                            order.paymentStatus === 'cancelled' || order.paymentStatus === 'failed' ? 'bg-red-100 text-red-700' : 
+                            'bg-amber-100 text-amber-700'
+                          }`}>
+                            {order.paymentStatus}
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-end">
+                          <span className="text-[10px] text-stone-400 font-bold uppercase">Total</span>
+                          <span className="text-sm font-black text-stone-800">{settings?.currency || '₦'}{order.totalAmount.toFixed(2)}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <select 
+                          disabled={updatingOrderId === order._id} 
+                          value={order.status} 
+                          onChange={(e) => handleUpdateOrderStatus(order._id, e.target.value)} 
+                          className={`flex-1 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider outline-none border-none disabled:opacity-50 ${
+                            order.status === 'delivered' ? 'bg-green-100 text-green-700' : 
+                            order.status === 'cancelled' ? 'bg-red-100 text-red-700' : 
+                            order.status === 'failed' ? 'bg-red-100 text-red-700' : 
+                            'bg-orange-100 text-orange-700'
+                          }`}
+                        >
+                          {["pending", "confirmed", "preparing", "out_for_delivery", "delivered", "cancelled", "failed"].map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="hidden sm:block overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
                       <tr className="border-b border-stone-100">
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Order / Customer</th>
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Date & Time</th>
+                        <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Payment</th>
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Status</th>
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs">Amount</th>
                         <th className="pb-4 font-bold text-stone-400 uppercase text-xs text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-50">
-                      {orders.map((order) => (
+                      {filteredOrders.map((order) => (
                         <tr key={order._id} className="hover:bg-stone-50 transition-colors">
                           <td className="py-4">
                             <div className="flex flex-col">
@@ -1266,9 +1423,18 @@ const Admin = () => {
                             {new Date(order.createdAt).toLocaleString()}
                           </td>
                           <td className="py-4">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                              order.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 
+                              order.paymentStatus === 'cancelled' || order.paymentStatus === 'failed' ? 'bg-red-100 text-red-700' : 
+                              'bg-amber-100 text-amber-700'
+                            }`}>
+                              {order.paymentStatus || 'pending'}
+                            </span>
+                          </td>
+                          <td className="py-4">
                             <div className="flex items-center space-x-2">
-                              <select disabled={updatingOrderId === order._id} value={order.status} onChange={(e) => handleUpdateOrderStatus(order._id, e.target.value)} className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider outline-none border-none disabled:opacity-50 ${order.status === 'delivered' ? 'bg-green-100 text-green-700' : order.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
-                                {["pending", "confirmed", "preparing", "out_for_delivery", "delivered", "cancelled"].map(s => <option key={s} value={s}>{s}</option>)}
+                              <select disabled={updatingOrderId === order._id} value={order.status} onChange={(e) => handleUpdateOrderStatus(order._id, e.target.value)} className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider outline-none border-none disabled:opacity-50 ${order.status === 'delivered' ? 'bg-green-100 text-green-700' : order.status === 'cancelled' || order.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
+                                {["pending", "confirmed", "preparing", "out_for_delivery", "delivered", "cancelled", "failed"].map(s => <option key={s} value={s}>{s}</option>)}
                               </select>
                             </div>
                           </td>
@@ -1281,6 +1447,31 @@ const Admin = () => {
                     </tbody>
                   </table>
                 </div>
+
+                {/* Pagination Controls */}
+                {ordersPagination.pages > 1 && (
+                  <div className="mt-8 flex items-center justify-between border-t border-stone-100 pt-6">
+                    <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">
+                      Page {ordersPagination.page} of {ordersPagination.pages} ({ordersPagination.total} Total)
+                    </p>
+                    <div className="flex items-center space-x-2">
+                      <button 
+                        disabled={ordersPagination.page === 1}
+                        onClick={() => setOrdersPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+                        className="px-4 py-2 bg-stone-50 border border-stone-100 rounded-lg font-bold text-stone-600 text-xs disabled:opacity-30 hover:bg-orange-50 hover:text-orange-600 transition-all"
+                      >
+                        Previous
+                      </button>
+                      <button 
+                        disabled={ordersPagination.page === ordersPagination.pages}
+                        onClick={() => setOrdersPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+                        className="px-4 py-2 bg-stone-50 border border-stone-100 rounded-lg font-bold text-stone-600 text-xs disabled:opacity-30 hover:bg-orange-50 hover:text-orange-600 transition-all"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1332,7 +1523,64 @@ const Admin = () => {
                     </div>
                   </div>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="block sm:hidden space-y-3">
+                  {sortedUsers.map((u) => (
+                    <div key={u._id} className="border border-stone-100 rounded-xl p-4 bg-stone-50/50">
+                      <div className="flex items-center space-x-3 mb-3">
+                        <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-sm overflow-hidden">
+                          {u.avatar ? (
+                            <img src={u.avatar.startsWith('http') || u.avatar.startsWith('data:') ? u.avatar : `${import.meta.env.VITE_API_BASE_URL}${u.avatar}`} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            u.name.charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-bold text-stone-700 text-sm truncate">{u.name}</span>
+                          <span className="text-xs text-stone-400 truncate">{u.email}</span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 mb-4">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-stone-400 font-bold uppercase">Status</span>
+                          <select 
+                            disabled={updatingUserId === u._id} 
+                            value={u.status || 'pending'} 
+                            onChange={(e) => handleUpdateUserStatus(u._id, e.target.value)} 
+                            className={`mt-1 px-2 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider outline-none border-none disabled:opacity-50 ${
+                              u.status === 'suspended' ? 'bg-red-100 text-red-700' : 
+                              u.status === 'pending' ? 'bg-amber-100 text-amber-700' : 
+                              'bg-green-100 text-green-700'
+                            }`}
+                          >
+                            <option value="pending">Pending</option>
+                            <option value="active">Active</option>
+                            <option value="suspended">Suspended</option>
+                          </select>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-stone-400 font-bold uppercase">Role</span>
+                          <select 
+                            disabled={updatingUserId === u._id} 
+                            value={u.role} 
+                            onChange={(e) => handleUpdateUserRole(u._id, e.target.value)} 
+                            className={`mt-1 px-2 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider outline-none border-none disabled:opacity-50 ${
+                              u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                            }`}
+                          >
+                            <option value="user">User</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center pt-3 border-t border-stone-100">
+                        <span className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">Joined: {new Date(u.createdAt).toLocaleDateString()}</span>
+                        {u.isVerified && <span className="text-[8px] font-black uppercase text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">Verified</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="hidden sm:block overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
                       <tr className="border-b border-stone-100">
@@ -1440,7 +1688,43 @@ const Admin = () => {
             {activeTab === 'reviews' && (
               <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-4 sm:p-6">
                 <h3 className="text-xl font-black text-stone-800 uppercase tracking-tight mb-6">User Reviews</h3>
-                <div className="overflow-x-auto">
+                <div className="block sm:hidden space-y-3">
+                  {Array.isArray(reviews) && reviews.map((review) => (
+                    <div key={review._id} className="border border-stone-100 rounded-xl p-4 bg-stone-50/50">
+                      <div className="flex items-center space-x-3 mb-3">
+                        <div className="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center text-stone-500 font-bold text-xs overflow-hidden">
+                          {review.userId?.avatar ? (
+                            <img src={review.userId.avatar.startsWith('http') || review.userId.avatar.startsWith('data:') ? review.userId.avatar : `${import.meta.env.VITE_API_BASE_URL}${review.userId.avatar}`} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <User size={16} />
+                          )}
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-bold text-stone-700 text-sm truncate">{review.userId?.name || 'Unknown User'}</span>
+                          <div className="flex items-center space-x-1 mt-0.5">
+                            {[1, 2, 3, 4, 5].map((s) => (
+                              <Star 
+                                key={s} 
+                                size={10} 
+                                fill={s <= review.rating ? '#EA580C' : 'transparent'} 
+                                className={s <= review.rating ? 'text-orange-600' : 'text-stone-200'}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-xs text-stone-600 italic bg-white p-3 rounded-lg border border-stone-50 mb-3 line-clamp-3">
+                        {review.comment || 'No comment provided'}
+                      </p>
+                      <div className="flex justify-between items-center text-[10px] font-bold text-stone-400 uppercase tracking-tight">
+                        <span>Order: #{review.orderId?._id?.substring(18) || 'N/A'}</span>
+                        <span>{new Date(review.createdAt).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="hidden sm:block overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
                       <tr className="border-b border-stone-100">
@@ -1525,9 +1809,9 @@ const Admin = () => {
                   </div>
                 </div>
 
-                <div className="flex-1 flex gap-6 overflow-hidden">
+                <div className="flex-1 flex gap-6 overflow-hidden relative">
                   {/* Ticket List */}
-                  <div className="w-full md:w-1/3 border-r border-stone-100 pr-4 overflow-y-auto space-y-3">
+                  <div className={`w-full md:w-1/3 border-r border-stone-100 md:pr-4 overflow-y-auto space-y-3 ${selectedTicket ? 'hidden md:block' : 'block'}`}>
                     {tickets
                       .filter(t => statusFilter === 'all' || t.status === statusFilter)
                       .map((ticket) => (
@@ -1561,22 +1845,36 @@ const Admin = () => {
                         </p>
                       </div>
                     ))}
+                    {tickets.length === 0 && (
+                      <div className="py-10 text-center opacity-30">
+                        <MessageSquare size={32} className="mx-auto mb-2" />
+                        <p className="text-[10px] font-black uppercase">No tickets found</p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Conversation View */}
-                  <div className="hidden md:flex flex-1 flex-col overflow-hidden">
+                  <div className={`${selectedTicket ? 'flex' : 'hidden'} md:flex flex-1 flex-col overflow-hidden bg-white md:bg-transparent absolute md:relative inset-0 z-10 md:z-0`}>
                     {selectedTicket ? (
                       <>
                         {/* Selected Ticket Header */}
                         <div className="pb-4 border-b border-stone-50 flex items-center justify-between">
-                          <div>
-                            <h4 className="font-black text-stone-800 uppercase tracking-tight">{selectedTicket.subject}</h4>
-                            <p className="text-[10px] text-stone-400 font-bold uppercase">Customer: {selectedTicket.userId?.name} ({selectedTicket.userId?.email})</p>
+                          <div className="flex items-center space-x-3">
+                            <button 
+                              onClick={() => setSelectedTicket(null)}
+                              className="md:hidden p-2 text-stone-400 hover:text-orange-600"
+                            >
+                              <ChevronLeft size={24} />
+                            </button>
+                            <div>
+                              <h4 className="font-black text-stone-800 uppercase tracking-tight text-sm sm:text-base truncate max-w-[150px] sm:max-w-xs">{selectedTicket.subject}</h4>
+                              <p className="text-[10px] text-stone-400 font-bold uppercase truncate max-w-[150px] sm:max-w-xs">{selectedTicket.userId?.name}</p>
+                            </div>
                           </div>
                           <select 
                             value={selectedTicket.status}
                             onChange={(e) => handleUpdateTicketStatus(selectedTicket._id, e.target.value)}
-                            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none border ${
+                            className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest outline-none border ${
                               selectedTicket.status === 'open' ? 'bg-blue-50 border-blue-100 text-blue-600' :
                               selectedTicket.status === 'resolved' ? 'bg-green-50 border-green-100 text-green-600' :
                               'bg-stone-50 border-stone-100 text-stone-500'

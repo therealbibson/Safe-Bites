@@ -14,6 +14,13 @@ const Checkout = () => {
   const [isOrdered, setIsOrdered] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('Cash on Delivery');
+  const [selectedAddressIndex, setSelectedAddressIndex] = useState(-1);
+  const [addressData, setAddressData] = useState({
+    address: '',
+    city: '',
+    zip: '',
+    phone: ''
+  });
   const [orderId, setOrderId] = useState(null);
 
   const currency = settings?.currency || '₦';
@@ -29,7 +36,39 @@ const Checkout = () => {
       const defaultMethod = user.paymentMethods.find(m => m.isDefault) || user.paymentMethods[0];
       setSelectedPaymentMethod(`Card ending in ${defaultMethod.last4}`);
     }
+    
+    if (user?.addresses?.length > 0) {
+      const defaultIdx = user.addresses.findIndex(a => a.isDefault);
+      const idx = defaultIdx !== -1 ? defaultIdx : 0;
+      setSelectedAddressIndex(idx);
+      const addr = user.addresses[idx];
+      setAddressData(prev => ({
+        ...prev,
+        address: addr.street,
+        city: addr.city,
+        zip: addr.zip || '',
+      }));
+    }
   }, [user]);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setAddressData(prev => ({ ...prev, [name]: value }));
+    if (name !== 'phone') {
+      setSelectedAddressIndex(-1); // Deselect saved address if manual changes made
+    }
+  };
+
+  const handleSelectAddress = (index) => {
+    setSelectedAddressIndex(index);
+    const addr = user.addresses[index];
+    setAddressData(prev => ({
+      ...prev,
+      address: addr.street,
+      city: addr.city,
+      zip: addr.zip || '',
+    }));
+  };
 
   useEffect(() => {
     if (cart.length === 0 && !isOrdered) {
@@ -96,15 +135,29 @@ const Checkout = () => {
       const isCardPayment = selectedPaymentMethod !== 'Cash on Delivery';
 
       if (isCardPayment) {
+        if (!import.meta.env.VITE_PAYSTACK_PUBLIC_KEY) {
+          alert('Paystack Public Key is missing. Please check your environment variables.');
+          setIsPlacingOrder(false);
+          return;
+        }
+
         setOrderId(newOrder.id);
+        const paymentRef = `SB-${Date.now()}-${newOrder.id.slice(-4)}`;
         
         // Launch Paystack directly using the Inline JS
-        // This is more reliable for dynamic metadata than the React hook
+        if (!window.PaystackPop) {
+          alert('Payment service (Paystack) is currently unavailable. Please refresh the page and try again or check your internet connection.');
+          setIsPlacingOrder(false);
+          return;
+        }
+
+        let paymentSuccessful = false;
+
         const handler = window.PaystackPop.setup({
           key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
           email: user?.email,
           amount: Math.round(grandTotal * 100),
-          ref: `SB-${Date.now()}-${newOrder.id.slice(-4)}`,
+          ref: paymentRef,
           metadata: {
             orderId: newOrder.id,
             custom_fields: [
@@ -117,13 +170,27 @@ const Checkout = () => {
           },
           callback: (response) => {
             console.log('[Checkout] Payment Success:', response);
+            paymentSuccessful = true;
             verifyPaymentOnBackend(response.reference, newOrder.id);
           },
           onClose: () => {
             setIsPlacingOrder(false);
-            // If they close, let them try again from the checkout or go to orders
-            alert('Payment window closed. If you already paid, please check your orders page.');
-            navigate('/orders');
+            
+            if (!paymentSuccessful) {
+              console.log('[Checkout] Payment window closed without success. Notifying backend...');
+              // Inform backend about cancellation so it shows in Admin Order Management
+              fetch(`${import.meta.env.VITE_API_BASE_URL}/api/payments/cancel`, {
+                method: 'POST',
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'x-user-id': user?.id || user?._id
+                },
+                body: JSON.stringify({ reference: paymentRef, orderId: newOrder.id })
+              }).catch(err => console.error('[Checkout] Error calling cancel endpoint:', err));
+
+              alert('Payment window closed. If you already paid, please check your orders page.');
+              navigate('/orders');
+            }
           }
         });
         handler.openIframe();
@@ -182,13 +249,75 @@ const Checkout = () => {
                 <MapPin className="text-orange-500 mr-2 sm:mr-3" size={20} className="sm:w-6 sm:h-6" />
                 Delivery Address
               </h2>
-              <div className="space-y-3 sm:space-y-4">
-                <input name="address" type="text" placeholder="Street Address" required className="w-full px-4 sm:px-6 py-3.5 sm:py-4 bg-stone-50 border-2 border-transparent rounded-xl sm:rounded-2xl focus:border-orange-500 focus:bg-white outline-none transition-all font-medium text-sm sm:text-base" />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  <input name="city" type="text" placeholder="City" required className="px-4 sm:px-6 py-3.5 sm:py-4 bg-stone-50 border-2 border-transparent rounded-xl sm:rounded-2xl focus:border-orange-500 focus:bg-white outline-none transition-all font-medium text-sm sm:text-base" />
-                  <input name="zip" type="text" placeholder="Zip Code" required className="px-4 sm:px-6 py-3.5 sm:py-4 bg-stone-50 border-2 border-transparent rounded-xl sm:rounded-2xl focus:border-orange-500 focus:bg-white outline-none transition-all font-medium text-sm sm:text-base" />
+
+              {user?.addresses?.length > 0 && (
+                <div className="mb-6 space-y-3">
+                  <p className="text-stone-400 font-bold text-xs uppercase tracking-widest px-1">Saved Addresses</p>
+                  <div className="flex space-x-3 overflow-x-auto pb-2 scrollbar-hide">
+                    {user.addresses.map((addr, index) => (
+                      <div 
+                        key={index}
+                        onClick={() => handleSelectAddress(index)}
+                        className={`flex-shrink-0 p-4 border-2 rounded-2xl cursor-pointer transition-all min-w-[160px] ${selectedAddressIndex === index ? 'border-orange-500 bg-orange-50' : 'border-stone-100 bg-white hover:border-orange-200'}`}
+                      >
+                        <h4 className={`font-black text-xs uppercase mb-1 ${selectedAddressIndex === index ? 'text-orange-600' : 'text-stone-500'}`}>{addr.label}</h4>
+                        <p className="text-[10px] text-stone-400 font-bold truncate">{addr.street}</p>
+                        <p className="text-[10px] text-stone-400 font-bold truncate">{addr.city}</p>
+                      </div>
+                    ))}
+                    <div 
+                      onClick={() => {
+                        setSelectedAddressIndex(-1);
+                        setAddressData({ address: '', city: '', zip: '', phone: addressData.phone });
+                      }}
+                      className={`flex-shrink-0 p-4 border-2 border-dashed rounded-2xl cursor-pointer transition-all flex flex-col items-center justify-center min-w-[120px] ${selectedAddressIndex === -1 ? 'border-orange-500 bg-orange-50' : 'border-stone-100 bg-white hover:border-orange-200'}`}
+                    >
+                      <MapPin size={16} className={selectedAddressIndex === -1 ? 'text-orange-600' : 'text-stone-300'} />
+                      <span className={`text-[10px] font-black uppercase mt-1 ${selectedAddressIndex === -1 ? 'text-orange-600' : 'text-stone-400'}`}>New</span>
+                    </div>
+                  </div>
                 </div>
-                <input name="phone" type="tel" placeholder="Phone Number" required className="w-full px-4 sm:px-6 py-3.5 sm:py-4 bg-stone-50 border-2 border-transparent rounded-xl sm:rounded-2xl focus:border-orange-500 focus:bg-white outline-none transition-all font-medium text-sm sm:text-base" />
+              )}
+
+              <div className="space-y-3 sm:space-y-4">
+                <input 
+                  name="address" 
+                  type="text" 
+                  placeholder="Street Address" 
+                  required 
+                  value={addressData.address}
+                  onChange={handleInputChange}
+                  className="w-full px-4 sm:px-6 py-3.5 sm:py-4 bg-stone-50 border-2 border-transparent rounded-xl sm:rounded-2xl focus:border-orange-500 focus:bg-white outline-none transition-all font-medium text-sm sm:text-base" 
+                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  <input 
+                    name="city" 
+                    type="text" 
+                    placeholder="City" 
+                    required 
+                    value={addressData.city}
+                    onChange={handleInputChange}
+                    className="px-4 sm:px-6 py-3.5 sm:py-4 bg-stone-50 border-2 border-transparent rounded-xl sm:rounded-2xl focus:border-orange-500 focus:bg-white outline-none transition-all font-medium text-sm sm:text-base" 
+                  />
+                  <input 
+                    name="zip" 
+                    type="text" 
+                    placeholder="Zip Code" 
+                    required 
+                    value={addressData.zip}
+                    onChange={handleInputChange}
+                    className="px-4 sm:px-6 py-3.5 sm:py-4 bg-stone-50 border-2 border-transparent rounded-xl sm:rounded-2xl focus:border-orange-500 focus:bg-white outline-none transition-all font-medium text-sm sm:text-base" 
+                  />
+                </div>
+                <input 
+                  name="phone" 
+                  type="tel" 
+                  placeholder="Phone Number" 
+                  required 
+                  value={addressData.phone}
+                  onChange={handleInputChange}
+                  className="w-full px-4 sm:px-6 py-3.5 sm:py-4 bg-stone-50 border-2 border-transparent rounded-xl sm:rounded-2xl focus:border-orange-500 focus:bg-white outline-none transition-all font-medium text-sm sm:text-base" 
+                />
               </div>
             </section>
 

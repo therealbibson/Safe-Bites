@@ -22,6 +22,12 @@ const ForgotPassword = () => {
       });
 
       const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Something went wrong');
+        return;
+      }
+
       setSuccess(true);
       // Store email in sessionStorage to pass it to the verification page
       sessionStorage.setItem('resetEmail', email);
@@ -35,7 +41,7 @@ const ForgotPassword = () => {
       }, 2000);
 
     } catch (err) {
-      setError(err.message);
+      setError('An error occurred. Please try again later.');
     } finally {
       setIsLoading(false);
     }

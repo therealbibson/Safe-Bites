@@ -36,7 +36,7 @@ const UserPage = () => {
     fetchStats();
   }, [user]);
 
-  const handleUpdatePaymentMethods = async (updatedMethods) => {
+  const handleUpdateProfile = async (updates) => {
     try {
       const uId = user?._id || user?.id;
       if (!uId) throw new Error('Authentication required');
@@ -48,20 +48,60 @@ const UserPage = () => {
           'x-user-id': uId,
           'x-user-role': user?.role
         },
-        body: JSON.stringify({ paymentMethods: updatedMethods }),
+        body: JSON.stringify(updates),
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to update payment methods');
+        throw new Error(error.error || 'Failed to update profile');
       }
 
       const updatedUser = await response.json();
-      updateUser({ paymentMethods: updatedUser.paymentMethods });
+      updateUser(updatedUser);
+      return true;
     } catch (error) {
-      console.error('Error updating payment methods:', error);
-      alert(error.message || 'Failed to update payment methods. Please try again.');
+      console.error('Error updating profile:', error);
+      alert(error.message || 'Failed to update profile. Please try again.');
+      return false;
     }
+  };
+
+  const handleUpdatePaymentMethods = async (updatedMethods) => {
+    await handleUpdateProfile({ paymentMethods: updatedMethods });
+  };
+
+  const handleAddAddress = async () => {
+    const label = prompt("Enter address label (e.g., Home, Office):", "Home");
+    const street = prompt("Enter street address:");
+    const city = prompt("Enter city:");
+    const state = prompt("Enter state:");
+    
+    if (street && city) {
+      const newAddress = {
+        label: label || "Home",
+        street,
+        city,
+        state: state || "",
+        isDefault: (user.addresses || []).length === 0
+      };
+      const updatedAddresses = [...(user.addresses || []), newAddress];
+      await handleUpdateProfile({ addresses: updatedAddresses });
+    }
+  };
+
+  const handleDeleteAddress = async (index) => {
+    if (confirm("Are you sure you want to delete this address?")) {
+      const updatedAddresses = (user.addresses || []).filter((_, i) => i !== index);
+      await handleUpdateProfile({ addresses: updatedAddresses });
+    }
+  };
+
+  const handleSetDefaultAddress = async (index) => {
+    const updatedAddresses = (user.addresses || []).map((addr, i) => ({
+      ...addr,
+      isDefault: i === index
+    }));
+    await handleUpdateProfile({ addresses: updatedAddresses });
   };
 
   const handleLogout = () => {
@@ -325,31 +365,109 @@ const UserPage = () => {
                     </div>
                   )}
                 </div>
+              ) : activeSection === 'addresses' ? (
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center mb-2 px-2">
+                    <p className="text-stone-400 font-bold text-xs sm:text-sm">Manage your delivery locations</p>
+                    <button 
+                      onClick={handleAddAddress}
+                      className="flex items-center space-x-2 bg-orange-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-orange-700 transition-all shadow-lg shadow-orange-100"
+                    >
+                      <Plus size={14} />
+                      <span>Add New</span>
+                    </button>
+                  </div>
+
+                  {(!user.addresses || user.addresses.length === 0) ? (
+                    <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[2.5rem] border border-dashed border-stone-200">
+                      <MapPin className="text-stone-200 mb-4" size={48} />
+                      <p className="text-stone-400 font-bold">No addresses saved</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {user.addresses.map((addr, index) => (
+                        <div 
+                          key={index}
+                          className="bg-white p-6 rounded-[2rem] shadow-sm border border-stone-100 flex items-center justify-between group"
+                        >
+                          <div className="flex items-center space-x-4">
+                            <div className="p-3 bg-stone-50 rounded-xl text-stone-400 group-hover:bg-orange-100 group-hover:text-orange-600 transition-colors">
+                              <MapPin size={20} />
+                            </div>
+                            <div>
+                              <div className="flex items-center space-x-2">
+                                <h3 className="font-bold text-stone-800">{addr.label}</h3>
+                                {addr.isDefault && (
+                                  <span className="bg-green-100 text-green-600 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest">Default</span>
+                                )}
+                              </div>
+                              <p className="text-stone-400 text-xs font-medium">{addr.street}, {addr.city}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            {!addr.isDefault && (
+                              <button 
+                                onClick={() => handleSetDefaultAddress(index)}
+                                className="p-2 text-stone-300 hover:text-green-500 transition-colors"
+                                title="Set as default"
+                              >
+                                <CheckCircle2 size={18} />
+                              </button>
+                            )}
+                            <button 
+                              onClick={() => handleDeleteAddress(index)}
+                              className="p-2 text-stone-300 hover:text-red-500 transition-colors"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               ) : activeSection === 'payments' ? (
                 <div className="space-y-6">
                   <div className="flex justify-between items-center mb-2 px-2">
                     <p className="text-stone-400 font-bold text-xs sm:text-sm">Manage your saved cards and wallets</p>
                     <button 
                       onClick={() => {
-                        const type = prompt("Enter card type (visa, mastercard):", "visa");
-                        const last4 = prompt("Enter last 4 digits:", "4242");
-                        const expiry = prompt("Enter expiry date (MM/YY):", "12/25");
-                        if (type && last4 && expiry) {
-                          const newMethod = {
-                            id: Math.random().toString(36).substr(2, 9),
-                            type: type.toLowerCase(),
-                            last4,
-                            expiry,
-                            isDefault: (user.paymentMethods || []).length === 0
-                          };
-                          const updatedMethods = [...(user.paymentMethods || []), newMethod];
-                          handleUpdatePaymentMethods(updatedMethods);
-                        }
+                        // In a real app, this would open Paystack Popup
+                        const script = document.createElement('script');
+                        script.src = 'https://js.paystack.co/v1/inline.js';
+                        script.async = true;
+                        document.body.appendChild(script);
+                        
+                        script.onload = () => {
+                          const handler = window.PaystackPop.setup({
+                            key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
+                            email: user.email,
+                            amount: 10000, // 100 NGN to verify
+                            currency: 'NGN',
+                            callback: function(response) {
+                              // On success, we simulate adding the card
+                              const newMethod = {
+                                id: response.reference,
+                                type: 'visa', // We'd get this from Paystack verification
+                                last4: '4242',
+                                expiry: '12/25',
+                                isDefault: (user.paymentMethods || []).length === 0
+                              };
+                              const updatedMethods = [...(user.paymentMethods || []), newMethod];
+                              handleUpdatePaymentMethods(updatedMethods);
+                              alert('Card added successfully!');
+                            },
+                            onClose: function() {
+                              alert('Transaction cancelled');
+                            }
+                          });
+                          handler.openIframe();
+                        };
                       }}
                       className="flex items-center space-x-2 bg-orange-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-orange-700 transition-all shadow-lg shadow-orange-100"
                     >
                       <Plus size={14} />
-                      <span>Add New</span>
+                      <span>Add Card</span>
                     </button>
                   </div>
 
@@ -418,10 +536,126 @@ const UserPage = () => {
                     </div>
                   )}
                 </div>
+              ) : activeSection === 'security' ? (
+                <div className="space-y-6">
+                  <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-stone-100">
+                    <h3 className="text-sm font-black text-stone-400 uppercase tracking-widest mb-4 px-2">Account Security</h3>
+                    <div className="space-y-4">
+                      <button 
+                        onClick={() => {
+                          const newPassword = prompt("Enter new password:");
+                          if (newPassword) {
+                            handleUpdateProfile({ password: newPassword }).then(success => {
+                              if (success) alert("Password updated successfully!");
+                            });
+                          }
+                        }}
+                        className="w-full flex items-center justify-between p-4 bg-stone-50 rounded-[1.5rem] group hover:bg-stone-100 transition-all"
+                      >
+                        <div className="flex items-center space-x-4">
+                          <div className="p-3 bg-white rounded-xl text-stone-400 shadow-sm">
+                            <Key size={20} />
+                          </div>
+                          <div className="text-left">
+                            <h4 className="font-bold text-stone-800">Change Password</h4>
+                            <p className="text-stone-500 text-xs">Update your login credentials</p>
+                          </div>
+                        </div>
+                        <ChevronRight size={18} className="text-stone-300 group-hover:translate-x-1 transition-transform" />
+                      </button>
+
+                      <div className="flex items-center justify-between p-4 bg-stone-50 rounded-[1.5rem]">
+                        <div className="flex items-center space-x-4">
+                          <div className="p-3 bg-white rounded-xl text-stone-400 shadow-sm">
+                            <Smartphone size={20} />
+                          </div>
+                          <div className="text-left">
+                            <h4 className="font-bold text-stone-800">Two-Factor Auth</h4>
+                            <p className="text-stone-500 text-xs">Add an extra layer of security</p>
+                          </div>
+                        </div>
+                        <div className="w-12 h-6 bg-stone-200 rounded-full relative cursor-not-allowed">
+                          <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow-sm" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-stone-100">
+                    <h3 className="text-sm font-black text-stone-400 uppercase tracking-widest mb-4 px-2">Privacy Control</h3>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between p-4 bg-stone-50 rounded-[1.5rem]">
+                        <span className="font-bold text-stone-700">Profile Visibility</span>
+                        <button 
+                          onClick={() => handleUpdateProfile({ privacy: { ...user.privacy, profileVisible: !user.privacy?.profileVisible } })}
+                          className={`w-12 h-6 rounded-full relative transition-colors ${user.privacy?.profileVisible ? 'bg-orange-600' : 'bg-stone-200'}`}
+                        >
+                          <motion.div 
+                            animate={{ x: user.privacy?.profileVisible ? 24 : 4 }}
+                            className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm" 
+                          />
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between p-4 bg-stone-50 rounded-[1.5rem]">
+                        <span className="font-bold text-stone-700">Public Order Stats</span>
+                        <button 
+                          onClick={() => handleUpdateProfile({ privacy: { ...user.privacy, showOrderHistory: !user.privacy?.showOrderHistory } })}
+                          className={`w-12 h-6 rounded-full relative transition-colors ${user.privacy?.showOrderHistory ? 'bg-orange-600' : 'bg-stone-200'}`}
+                        >
+                          <motion.div 
+                            animate={{ x: user.privacy?.showOrderHistory ? 24 : 4 }}
+                            className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm" 
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               ) : activeSection === 'settings' ? (
                 <div className="space-y-6">
                   <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-stone-100">
-                    <h3 className="text-sm font-black text-stone-400 uppercase tracking-widest mb-4 px-2">App Support</h3>
+                    <h3 className="text-sm font-black text-stone-400 uppercase tracking-widest mb-4 px-2">Personalization</h3>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between p-4 bg-stone-50 rounded-[1.5rem]">
+                        <div className="flex items-center space-x-4">
+                          <div className="p-3 bg-white rounded-xl text-stone-400 shadow-sm">
+                            <Bell size={20} />
+                          </div>
+                          <span className="font-bold text-stone-700">Push Notifications</span>
+                        </div>
+                        <button 
+                          onClick={() => handleUpdateProfile({ settings: { ...user.settings, notifications: { ...user.settings?.notifications, push: !user.settings?.notifications?.push } } })}
+                          className={`w-12 h-6 rounded-full relative transition-colors ${user.settings?.notifications?.push ? 'bg-orange-600' : 'bg-stone-200'}`}
+                        >
+                          <motion.div 
+                            animate={{ x: user.settings?.notifications?.push ? 24 : 4 }}
+                            className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm" 
+                          />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between p-4 bg-stone-50 rounded-[1.5rem]">
+                        <div className="flex items-center space-x-4">
+                          <div className="p-3 bg-white rounded-xl text-stone-400 shadow-sm">
+                            <Settings size={20} />
+                          </div>
+                          <span className="font-bold text-stone-700">App Language</span>
+                        </div>
+                        <select 
+                          value={user.settings?.language || 'en'}
+                          onChange={(e) => handleUpdateProfile({ settings: { ...user.settings, language: e.target.value } })}
+                          className="bg-transparent font-bold text-orange-600 outline-none"
+                        >
+                          <option value="en">English</option>
+                          <option value="fr">French</option>
+                          <option value="es">Spanish</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-stone-100">
+                    <h3 className="text-sm font-black text-stone-400 uppercase tracking-widest mb-4 px-2">Support</h3>
                     <button 
                       onClick={() => navigate('/support')}
                       className="w-full flex items-center justify-between p-4 bg-orange-50 rounded-[1.5rem] border border-orange-100 group hover:bg-orange-100 transition-all"
@@ -431,36 +665,12 @@ const UserPage = () => {
                           <MessageSquare size={20} />
                         </div>
                         <div className="text-left">
-                          <h4 className="font-bold text-stone-800">Help & Support Center</h4>
-                          <p className="text-stone-500 text-xs">Contact us or view your support tickets</p>
+                          <h4 className="font-bold text-stone-800">Help Center</h4>
+                          <p className="text-stone-500 text-xs">Contact us or view tickets</p>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-3">
-                        {notifications.some(n => n.type === 'support_update' && !n.isRead) && (
-                          <div className="bg-orange-600 text-white text-[10px] font-black px-2 py-1 rounded-full animate-pulse">
-                            NEW REPLY
-                          </div>
-                        )}
-                        <ChevronRight size={18} className="text-orange-400 group-hover:translate-x-1 transition-transform" />
-                      </div>
+                      <ChevronRight size={18} className="text-orange-400 group-hover:translate-x-1 transition-transform" />
                     </button>
-                  </div>
-
-                  <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-stone-100">
-                    <h3 className="text-sm font-black text-stone-400 uppercase tracking-widest mb-4 px-2">Personalization</h3>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between p-4 bg-stone-50 rounded-[1.5rem]">
-                        <div className="flex items-center space-x-4">
-                          <div className="p-3 bg-white rounded-xl text-stone-400 shadow-sm">
-                            <Bell size={20} />
-                          </div>
-                          <span className="font-bold text-stone-700">Push Notifications</span>
-                        </div>
-                        <div className="w-12 h-6 bg-orange-600 rounded-full relative">
-                          <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full shadow-sm" />
-                        </div>
-                      </div>
-                    </div>
                   </div>
 
                   <div className="flex flex-col items-center justify-center py-10 opacity-50">
