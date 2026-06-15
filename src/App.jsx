@@ -26,7 +26,7 @@ const MaintenanceWrapper = ({ children }) => {
   if (loading) return null;
 
   // Allow admins to access everything, especially the admin panel to turn off maintenance mode
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'super-admin';
   const isAdminPath = location.pathname.startsWith('/admin');
 
   if (settings.maintenanceMode && !isAdmin && !isAdminPath && location.pathname !== '/maintenance') {

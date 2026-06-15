@@ -270,7 +270,7 @@ const Support = () => {
 
                       {/* Responses */}
                       {selectedTicket.responses.map((res, i) => {
-                        const isAdmin = res.senderId?.role === 'admin' || (res.senderId && typeof res.senderId === 'object' && res.senderId.role === 'admin');
+                        const isAdmin = res.senderId?.role === 'admin' || res.senderId?.role === 'super-admin' || (res.senderId && typeof res.senderId === 'object' && (res.senderId.role === 'admin' || res.senderId.role === 'super-admin'));
                         return (
                           <div key={i} className={`flex items-start space-x-3 ${isAdmin ? 'flex-row-reverse space-x-reverse' : ''}`}>
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${

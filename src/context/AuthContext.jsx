@@ -70,7 +70,13 @@ export const AuthProvider = ({ children }) => {
       if (user?._id || user?.id) {
         try {
           const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/users/${user._id || user.id}`);
-          if (response.status === 403) {
+          if (response.ok) {
+            const latestUser = await response.json();
+            // If the role or status has changed, update local state
+            if (latestUser.role !== user.role || latestUser.status !== user.status || latestUser.name !== user.name) {
+              updateUser(latestUser);
+            }
+          } else if (response.status === 403) {
             const data = await response.json();
             if (data.error && data.error.includes('suspended')) {
               logout();

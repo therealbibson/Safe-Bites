@@ -10,12 +10,28 @@ import ReviewModal from '../components/ReviewModal';
 const OrderCard = ({ order, index }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const { settings } = useSettings();
+  const { cancelOrder } = useCart();
   const currency = settings?.currency || '₦';
 
   const handleOpenReview = (e) => {
     e.stopPropagation();
     setIsReviewModalOpen(true);
+  };
+
+  const handleCancelOrder = async (e) => {
+    e.stopPropagation();
+    if (window.confirm('Are you sure you want to cancel this order?')) {
+      setIsCancelling(true);
+      try {
+        await cancelOrder(order.id);
+      } catch (error) {
+        alert(error.message);
+      } finally {
+        setIsCancelling(false);
+      }
+    }
   };
 
   return (
@@ -102,7 +118,17 @@ const OrderCard = ({ order, index }) => {
                   <CheckCircle2 size={14} className="mr-2 sm:w-4 sm:h-4" />
                   {order.status === 'delivered' ? 'Order Completed' : 'Safe Delivery Guaranteed'}
                 </div>
-                <div className="flex items-center space-x-3 w-full sm:w-auto">
+                <div className="flex flex-wrap items-center justify-center sm:justify-end gap-3 w-full sm:w-auto">
+                  {(order.status === 'pending' || order.status === 'confirmed') && (
+                    <button 
+                      onClick={handleCancelOrder}
+                      disabled={isCancelling}
+                      className="flex-1 sm:flex-none flex items-center justify-center space-x-2 px-4 py-2 bg-red-50 text-red-600 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-sm disabled:opacity-50"
+                    >
+                      {isCancelling ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />}
+                      <span>Cancel Order</span>
+                    </button>
+                  )}
                   {order.status === 'delivered' && (
                     <button 
                       onClick={handleOpenReview}

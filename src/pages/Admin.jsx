@@ -412,16 +412,16 @@ const Admin = () => {
       }
     };
 
-    if (isAuthenticated && user?.role === 'admin') {
+    if (isAuthenticated && (user?.role === 'admin' || user?.role === 'super-admin')) {
       fetchInitialData();
-    } else if (isAuthenticated && user?.role !== 'admin') {
+    } else if (isAuthenticated && (user?.role !== 'admin' && user?.role !== 'super-admin')) {
       setLoading(false);
     }
   }, [isAuthenticated, user]);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
-      if (activeTab !== 'dashboard' || !isAuthenticated || user?.role !== 'admin') return;
+      if (activeTab !== 'dashboard' || !isAuthenticated || (user?.role !== 'admin' && user?.role !== 'super-admin')) return;
       
       try {
         const headers = {
@@ -446,7 +446,7 @@ const Admin = () => {
 
   useEffect(() => {
     const fetchTabData = async () => {
-      if (activeTab === 'dashboard' || activeTab === 'settings' || !isAuthenticated || user?.role !== 'admin') return;
+      if (activeTab === 'dashboard' || activeTab === 'settings' || !isAuthenticated || (user?.role !== 'admin' && user?.role !== 'super-admin')) return;
       
       setTabLoading(true);
       try {
@@ -763,7 +763,7 @@ const Admin = () => {
     }
   };
 
-  if (isAuthenticated && user?.role !== 'admin') {
+  if (isAuthenticated && ((user?.role !== 'admin' && user?.role !== 'super-admin') && user?.role !== 'super-admin')) {
     return (
       <div className="min-h-screen bg-stone-50 pt-16 flex items-center justify-center">
         <Navbar />
@@ -1560,15 +1560,17 @@ const Admin = () => {
                         <div className="flex flex-col">
                           <span className="text-[10px] text-stone-400 font-bold uppercase">Role</span>
                           <select 
-                            disabled={updatingUserId === u._id} 
+                            disabled={updatingUserId === u._id || user?.role !== 'super-admin'} 
                             value={u.role} 
                             onChange={(e) => handleUpdateUserRole(u._id, e.target.value)} 
                             className={`mt-1 px-2 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider outline-none border-none disabled:opacity-50 ${
+                              u.role === 'super-admin' ? 'bg-orange-100 text-orange-700' :
                               u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
                             }`}
                           >
                             <option value="user">User</option>
                             <option value="admin">Admin</option>
+                            {user?.role === 'super-admin' && <option value="super-admin">Super Admin</option>}
                           </select>
                         </div>
                       </div>
@@ -1673,8 +1675,18 @@ const Admin = () => {
                             </select>
                           </td>
                           <td className="py-4 text-right">
-                            <select disabled={updatingUserId === u._id} value={u.role} onChange={(e) => handleUpdateUserRole(u._id, e.target.value)} className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider outline-none border-none disabled:opacity-50 ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                              <option value="user">User</option><option value="admin">Admin</option>
+                            <select 
+                              disabled={updatingUserId === u._id || user?.role !== 'super-admin'} 
+                              value={u.role} 
+                              onChange={(e) => handleUpdateUserRole(u._id, e.target.value)} 
+                              className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider outline-none border-none disabled:opacity-50 ${
+                                u.role === 'super-admin' ? 'bg-orange-100 text-orange-700' :
+                                u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                              }`}
+                            >
+                              <option value="user">User</option>
+                              <option value="admin">Admin</option>
+                              {user?.role === 'super-admin' && <option value="super-admin">Super Admin</option>}
                             </select>
                           </td>
                         </tr>

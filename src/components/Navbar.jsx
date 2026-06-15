@@ -31,7 +31,7 @@ const Navbar = () => {
           SafeBite
         </Link>
         <div className="flex items-center space-x-2 sm:space-x-4">
-          {isAuthenticated && user?.role === 'admin' && (
+          {(user?.role === 'admin' || user?.role === 'super-admin') && isAuthenticated && (
             <Link 
               to="/admin" 
               className="flex items-center justify-center sm:space-x-2 bg-orange-600 text-white p-2 sm:px-4 sm:py-2 rounded-full font-bold text-sm hover:bg-orange-700 transition-all shadow-md shadow-orange-100"

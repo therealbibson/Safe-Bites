@@ -186,6 +186,34 @@ export const CartProvider = ({ children }) => {
     }
   };
 
+  const cancelOrder = async (orderId) => {
+    if (!isAuthenticated || !user) return;
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/orders/${orderId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user.id || user._id,
+          'x-user-role': user?.role
+        },
+        body: JSON.stringify({ status: 'cancelled' })
+      });
+
+      if (response.ok) {
+        const updatedOrder = await response.json();
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'cancelled' } : o));
+        return true;
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to cancel order');
+      }
+    } catch (error) {
+      console.error('[CartContext] Error cancelling order:', error);
+      throw error;
+    }
+  };
+
   const cartTotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
   const cartCount = cart.reduce((count, item) => count + item.quantity, 0);
   const deliveryFee = Number(settings?.deliveryFee || 0);
