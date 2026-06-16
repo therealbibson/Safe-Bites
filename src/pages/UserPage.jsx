@@ -10,6 +10,7 @@ import {
   Check, MessageSquare
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
+import CardForm from '../components/CardForm';
 
 const UserPage = () => {
   const { user, logout, updateUser } = useAuth();
@@ -19,6 +20,7 @@ const UserPage = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [stats, setStats] = useState({ orderCount: 0, reviewCount: 0 });
   const [activeSection, setActiveSection] = useState('menu');
+  const [isCardFormOpen, setIsCardFormOpen] = useState(false);
 
   React.useEffect(() => {
     const fetchStats = async () => {
@@ -431,39 +433,7 @@ const UserPage = () => {
                   <div className="flex justify-between items-center mb-2 px-2">
                     <p className="text-stone-400 font-bold text-xs sm:text-sm">Manage your saved cards and wallets</p>
                     <button 
-                      onClick={() => {
-                        // In a real app, this would open Paystack Popup
-                        const script = document.createElement('script');
-                        script.src = 'https://js.paystack.co/v1/inline.js';
-                        script.async = true;
-                        document.body.appendChild(script);
-                        
-                        script.onload = () => {
-                          const handler = window.PaystackPop.setup({
-                            key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
-                            email: user.email,
-                            amount: 10000, // 100 NGN to verify
-                            currency: 'NGN',
-                            callback: function(response) {
-                              // On success, we simulate adding the card
-                              const newMethod = {
-                                id: response.reference,
-                                type: 'visa', // We'd get this from Paystack verification
-                                last4: '4242',
-                                expiry: '12/25',
-                                isDefault: (user.paymentMethods || []).length === 0
-                              };
-                              const updatedMethods = [...(user.paymentMethods || []), newMethod];
-                              handleUpdatePaymentMethods(updatedMethods);
-                              alert('Card added successfully!');
-                            },
-                            onClose: function() {
-                              alert('Transaction cancelled');
-                            }
-                          });
-                          handler.openIframe();
-                        };
-                      }}
+                      onClick={() => setIsCardFormOpen(true)}
                       className="flex items-center space-x-2 bg-orange-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-orange-700 transition-all shadow-lg shadow-orange-100"
                     >
                       <Plus size={14} />
@@ -489,6 +459,8 @@ const UserPage = () => {
                                 <span className="text-blue-600 text-lg italic">VISA</span>
                               ) : method.type === 'mastercard' ? (
                                 <span className="text-red-500 text-lg font-serif">MC</span>
+                              ) : method.type === 'verve' ? (
+                                <span className="text-teal-600 text-[10px] font-black">VERVE</span>
                               ) : (
                                 <CreditCard size={20} />
                               )}
@@ -563,97 +535,11 @@ const UserPage = () => {
                         </div>
                         <ChevronRight size={18} className="text-stone-300 group-hover:translate-x-1 transition-transform" />
                       </button>
-
-                      <div className="flex items-center justify-between p-4 bg-stone-50 rounded-[1.5rem]">
-                        <div className="flex items-center space-x-4">
-                          <div className="p-3 bg-white rounded-xl text-stone-400 shadow-sm">
-                            <Smartphone size={20} />
-                          </div>
-                          <div className="text-left">
-                            <h4 className="font-bold text-stone-800">Two-Factor Auth</h4>
-                            <p className="text-stone-500 text-xs">Add an extra layer of security</p>
-                          </div>
-                        </div>
-                        <div className="w-12 h-6 bg-stone-200 rounded-full relative cursor-not-allowed">
-                          <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow-sm" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-stone-100">
-                    <h3 className="text-sm font-black text-stone-400 uppercase tracking-widest mb-4 px-2">Privacy Control</h3>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between p-4 bg-stone-50 rounded-[1.5rem]">
-                        <span className="font-bold text-stone-700">Profile Visibility</span>
-                        <button 
-                          onClick={() => handleUpdateProfile({ privacy: { ...user.privacy, profileVisible: !user.privacy?.profileVisible } })}
-                          className={`w-12 h-6 rounded-full relative transition-colors ${user.privacy?.profileVisible ? 'bg-orange-600' : 'bg-stone-200'}`}
-                        >
-                          <motion.div 
-                            animate={{ x: user.privacy?.profileVisible ? 24 : 4 }}
-                            className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm" 
-                          />
-                        </button>
-                      </div>
-                      <div className="flex items-center justify-between p-4 bg-stone-50 rounded-[1.5rem]">
-                        <span className="font-bold text-stone-700">Public Order Stats</span>
-                        <button 
-                          onClick={() => handleUpdateProfile({ privacy: { ...user.privacy, showOrderHistory: !user.privacy?.showOrderHistory } })}
-                          className={`w-12 h-6 rounded-full relative transition-colors ${user.privacy?.showOrderHistory ? 'bg-orange-600' : 'bg-stone-200'}`}
-                        >
-                          <motion.div 
-                            animate={{ x: user.privacy?.showOrderHistory ? 24 : 4 }}
-                            className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm" 
-                          />
-                        </button>
-                      </div>
                     </div>
                   </div>
                 </div>
               ) : activeSection === 'settings' ? (
                 <div className="space-y-6">
-                  <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-stone-100">
-                    <h3 className="text-sm font-black text-stone-400 uppercase tracking-widest mb-4 px-2">Personalization</h3>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between p-4 bg-stone-50 rounded-[1.5rem]">
-                        <div className="flex items-center space-x-4">
-                          <div className="p-3 bg-white rounded-xl text-stone-400 shadow-sm">
-                            <Bell size={20} />
-                          </div>
-                          <span className="font-bold text-stone-700">Push Notifications</span>
-                        </div>
-                        <button 
-                          onClick={() => handleUpdateProfile({ settings: { ...user.settings, notifications: { ...user.settings?.notifications, push: !user.settings?.notifications?.push } } })}
-                          className={`w-12 h-6 rounded-full relative transition-colors ${user.settings?.notifications?.push ? 'bg-orange-600' : 'bg-stone-200'}`}
-                        >
-                          <motion.div 
-                            animate={{ x: user.settings?.notifications?.push ? 24 : 4 }}
-                            className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm" 
-                          />
-                        </button>
-                      </div>
-
-                      <div className="flex items-center justify-between p-4 bg-stone-50 rounded-[1.5rem]">
-                        <div className="flex items-center space-x-4">
-                          <div className="p-3 bg-white rounded-xl text-stone-400 shadow-sm">
-                            <Settings size={20} />
-                          </div>
-                          <span className="font-bold text-stone-700">App Language</span>
-                        </div>
-                        <select 
-                          value={user.settings?.language || 'en'}
-                          onChange={(e) => handleUpdateProfile({ settings: { ...user.settings, language: e.target.value } })}
-                          className="bg-transparent font-bold text-orange-600 outline-none"
-                        >
-                          <option value="en">English</option>
-                          <option value="fr">French</option>
-                          <option value="es">Spanish</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-
                   <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-stone-100">
                     <h3 className="text-sm font-black text-stone-400 uppercase tracking-widest mb-4 px-2">Support</h3>
                     <button 
@@ -690,6 +576,17 @@ const UserPage = () => {
           )}
         </AnimatePresence>
       </main>
+
+      <CardForm 
+        isOpen={isCardFormOpen} 
+        onClose={() => setIsCardFormOpen(false)} 
+        onCardAdded={(newMethod) => {
+          const updatedMethods = [...(user.paymentMethods || []), newMethod];
+          handleUpdatePaymentMethods(updatedMethods);
+          alert('Card added successfully!');
+        }}
+        userEmail={user?.email}
+      />
     </div>
   );
 };

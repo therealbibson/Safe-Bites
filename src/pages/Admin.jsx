@@ -457,7 +457,7 @@ const Admin = () => {
 
         let endpoint = '';
         if (activeTab === 'products') endpoint = 'foods';
-        if (activeTab === 'orders') endpoint = `orders?page=${ordersPagination.page}&limit=50`;
+        if (activeTab === 'orders') endpoint = `orders?page=${ordersPagination.page}&limit=50&adminView=true`;
         if (activeTab === 'users') endpoint = 'users';
         if (activeTab === 'reviews') endpoint = 'reviews';
         if (activeTab === 'support') endpoint = 'support/all';

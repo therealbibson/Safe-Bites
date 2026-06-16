@@ -1,12 +1,14 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { useSettings } from './SettingsContext';
+import { useToast } from './ToastContext';
 
 const CartContext = createContext();
 
 export const CartProvider = ({ children }) => {
   const { user, isAuthenticated } = useAuth();
   const { settings } = useSettings();
+  const { showToast } = useToast();
   const [cart, setCart] = useState(() => {
     const savedCart = localStorage.getItem('safebite_cart');
     return savedCart ? JSON.parse(savedCart) : [];
@@ -86,7 +88,7 @@ export const CartProvider = ({ children }) => {
 
   const isAdding = (productId) => addingItems.has(productId);
 
-  const addToCart = async (product) => {
+  const addToCart = async (product, quantity = 1) => {
     const productId = product._id || product.id;
     setAddingItems(prev => new Set(prev).add(productId));
 
@@ -98,7 +100,7 @@ export const CartProvider = ({ children }) => {
       if (existingItem) {
         return prevCart.map(item =>
           item.productId === productId
-            ? { ...item, quantity: item.quantity + 1 }
+            ? { ...item, quantity: item.quantity + (typeof quantity === 'number' ? quantity : 1) }
             : item
         );
       }
@@ -107,7 +109,7 @@ export const CartProvider = ({ children }) => {
         name: product.name,
         price: product.price,
         imageUrl: product.imageUrl || product.image,
-        quantity: 1,
+        quantity: typeof quantity === 'number' ? quantity : 1,
         stock: product.stock,
         isAvailable: product.isAvailable
       }];
@@ -118,10 +120,16 @@ export const CartProvider = ({ children }) => {
       next.delete(productId);
       return next;
     });
+
+    showToast(`${product.name} added to cart!`, 'success');
   };
 
   const removeFromCart = (productId) => {
+    const itemToRemove = cart.find(item => item.productId === productId);
     setCart(prevCart => prevCart.filter(item => item.productId !== productId));
+    if (itemToRemove) {
+      showToast(`${itemToRemove.name} removed from cart`, 'info');
+    }
   };
 
   const updateQuantity = (productId, quantity) => {
@@ -139,6 +147,7 @@ export const CartProvider = ({ children }) => {
 
   const placeOrder = async (orderDetails) => {
     if (!isAuthenticated) {
+      showToast('You must be logged in to place an order', 'error');
       throw new Error('You must be logged in to place an order');
     }
 
@@ -164,6 +173,7 @@ export const CartProvider = ({ children }) => {
 
       if (!response.ok) {
         const error = await response.json();
+        showToast(error.error || 'Failed to place order', 'error');
         throw new Error(error.error || 'Failed to place order');
       }
 
@@ -180,8 +190,12 @@ export const CartProvider = ({ children }) => {
 
       setOrders(prev => [formattedNewOrder, ...prev]);
       clearCart();
+      showToast('Order placed successfully!', 'success');
       return formattedNewOrder;
     } catch (error) {
+      if (!error.message.includes('logged in')) {
+        showToast(error.message, 'error');
+      }
       throw error;
     }
   };

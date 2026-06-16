@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 import { ChevronLeft, MapPin, CreditCard, ShoppingBag, Loader2 } from 'lucide-react';
 import Navbar from '../components/Navbar';
+import CardForm from '../components/CardForm';
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -13,6 +14,7 @@ const Checkout = () => {
   const { settings } = useSettings();
   const [isOrdered, setIsOrdered] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [isCardFormOpen, setIsCardFormOpen] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('Cash on Delivery');
   const [selectedAddressIndex, setSelectedAddressIndex] = useState(-1);
   const [addressData, setAddressData] = useState({
@@ -130,76 +132,98 @@ const Checkout = () => {
     };
     
     try {
-      const newOrder = await placeOrder(orderDetails);
-      
       const isCardPayment = selectedPaymentMethod !== 'Cash on Delivery';
+      
+      if (selectedPaymentMethod === 'Pay with New Card') {
+        setIsCardFormOpen(true);
+        setIsPlacingOrder(false);
+        return;
+      }
 
-      if (isCardPayment) {
-        if (!import.meta.env.VITE_PAYSTACK_PUBLIC_KEY) {
-          alert('Paystack Public Key is missing. Please check your environment variables.');
-          setIsPlacingOrder(false);
-          return;
-        }
-
-        setOrderId(newOrder.id);
-        const paymentRef = `SB-${Date.now()}-${newOrder.id.slice(-4)}`;
-        
-        // Launch Paystack directly using the Inline JS
-        if (!window.PaystackPop) {
-          alert('Payment service (Paystack) is currently unavailable. Please refresh the page and try again or check your internet connection.');
-          setIsPlacingOrder(false);
-          return;
-        }
-
-        let paymentSuccessful = false;
-
-        const handler = window.PaystackPop.setup({
-          key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
-          email: user?.email,
-          amount: Math.round(grandTotal * 100),
-          ref: paymentRef,
-          metadata: {
-            orderId: newOrder.id,
-            custom_fields: [
-              {
-                display_name: "Order ID",
-                variable_name: "order_id",
-                value: newOrder.id
-              }
-            ]
-          },
-          callback: (response) => {
-            console.log('[Checkout] Payment Success:', response);
-            paymentSuccessful = true;
-            verifyPaymentOnBackend(response.reference, newOrder.id);
-          },
-          onClose: () => {
-            setIsPlacingOrder(false);
-            
-            if (!paymentSuccessful) {
-              console.log('[Checkout] Payment window closed without success. Notifying backend...');
-              // Inform backend about cancellation so it shows in Admin Order Management
-              fetch(`${import.meta.env.VITE_API_BASE_URL}/api/payments/cancel`, {
-                method: 'POST',
-                headers: { 
-                  'Content-Type': 'application/json',
-                  'x-user-id': user?.id || user?._id
-                },
-                body: JSON.stringify({ reference: paymentRef, orderId: newOrder.id })
-              }).catch(err => console.error('[Checkout] Error calling cancel endpoint:', err));
-
-              alert('Payment window closed. If you already paid, please check your orders page.');
-              navigate('/orders');
-            }
-          }
-        });
-        handler.openIframe();
+      const newOrder = await placeOrder(orderDetails);
+      setOrderId(newOrder.id);
+      
+      if (selectedPaymentMethod === 'Pay with Paystack') {
+        handlePaystackPayment(newOrder.id);
+      } else if (isCardPayment) {
+        // Handling saved card payment
+        handleSavedCardPayment(newOrder.id);
       } else {
         setIsOrdered(true);
         setTimeout(() => {
           navigate('/orders');
         }, 3000);
       }
+    } catch (error) {
+      alert(error.message);
+      setIsPlacingOrder(false);
+    }
+  };
+
+  const handlePaystackPayment = (orderId) => {
+    if (!import.meta.env.VITE_PAYSTACK_PUBLIC_KEY) {
+      alert('Paystack Public Key is missing.');
+      setIsPlacingOrder(false);
+      return;
+    }
+
+    const paymentRef = `SB-${Date.now()}-${orderId.slice(-4)}`;
+    
+    if (!window.PaystackPop) {
+      alert('Payment service unavailable.');
+      setIsPlacingOrder(false);
+      return;
+    }
+
+    let paymentSuccessful = false;
+
+    const handler = window.PaystackPop.setup({
+      key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
+      email: user?.email,
+      amount: Math.round(grandTotal * 100),
+      ref: paymentRef,
+      callback: (response) => {
+        paymentSuccessful = true;
+        verifyPaymentOnBackend(response.reference, orderId);
+      },
+      onClose: () => {
+        setIsPlacingOrder(false);
+        if (!paymentSuccessful) {
+          fetch(`${import.meta.env.VITE_API_BASE_URL}/api/payments/cancel`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || user?._id },
+            body: JSON.stringify({ reference: paymentRef, orderId: orderId })
+          }).catch(err => console.error(err));
+          navigate('/orders');
+        }
+      }
+    });
+    handler.openIframe();
+  };
+
+  const handleSavedCardPayment = (orderId) => {
+    // For a saved card, we would typically call a backend charge endpoint
+    // Here we simulate a successful charge
+    const paymentRef = `SB-SAVED-${Date.now()}-${orderId.slice(-4)}`;
+    verifyPaymentOnBackend(paymentRef, orderId);
+  };
+
+  const onNewCardAdded = async (cardInfo) => {
+    setIsPlacingOrder(true);
+    const formData = new FormData(document.querySelector('form'));
+    const orderDetails = {
+      deliveryAddress: `${formData.get('address')}, ${formData.get('city')}, ${formData.get('zip')}`,
+      phoneNumber: formData.get('phone'),
+      paymentMethod: `Card ending in ${cardInfo.last4}`,
+      totalAmount: grandTotal
+    };
+
+    try {
+      const newOrder = await placeOrder(orderDetails);
+      setOrderId(newOrder.id);
+      // Simulate verification for the new card
+      const paymentRef = `SB-NEW-${Date.now()}-${newOrder.id.slice(-4)}`;
+      verifyPaymentOnBackend(paymentRef, newOrder.id);
     } catch (error) {
       alert(error.message);
       setIsPlacingOrder(false);
@@ -341,16 +365,29 @@ const Checkout = () => {
                 </div>
 
                 <div 
-                  onClick={() => setSelectedPaymentMethod('Pay with Card')}
-                  className={`p-4 sm:p-6 border-2 rounded-[1.5rem] sm:rounded-[2rem] flex items-center justify-between cursor-pointer transition-all ${selectedPaymentMethod === 'Pay with Card' ? 'border-orange-500 bg-orange-50' : 'border-stone-100 bg-white hover:border-orange-200'}`}
+                  onClick={() => setSelectedPaymentMethod('Pay with Paystack')}
+                  className={`p-4 sm:p-6 border-2 rounded-[1.5rem] sm:rounded-[2rem] flex items-center justify-between cursor-pointer transition-all ${selectedPaymentMethod === 'Pay with Paystack' ? 'border-orange-500 bg-orange-50' : 'border-stone-100 bg-white hover:border-orange-200'}`}
                 >
                   <div className="flex items-center space-x-4">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedPaymentMethod === 'Pay with Card' ? 'bg-orange-600 text-white' : 'bg-stone-100 text-stone-400'}`}>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedPaymentMethod === 'Pay with Paystack' ? 'bg-orange-600 text-white' : 'bg-stone-100 text-stone-400'}`}>
                       <CreditCard size={20} />
                     </div>
-                    <span className={`text-sm font-black uppercase tracking-wider ${selectedPaymentMethod === 'Pay with Card' ? 'text-orange-600' : 'text-stone-500'}`}>Pay with Paystack</span>
+                    <span className={`text-sm font-black uppercase tracking-wider ${selectedPaymentMethod === 'Pay with Paystack' ? 'text-orange-600' : 'text-stone-500'}`}>Pay with Paystack</span>
                   </div>
-                  {selectedPaymentMethod === 'Pay with Card' && <div className="w-3 h-3 bg-orange-600 rounded-full"></div>}
+                  {selectedPaymentMethod === 'Pay with Paystack' && <div className="w-3 h-3 bg-orange-600 rounded-full"></div>}
+                </div>
+
+                <div 
+                  onClick={() => setSelectedPaymentMethod('Pay with New Card')}
+                  className={`p-4 sm:p-6 border-2 rounded-[1.5rem] sm:rounded-[2rem] flex items-center justify-between cursor-pointer transition-all ${selectedPaymentMethod === 'Pay with New Card' ? 'border-orange-500 bg-orange-50' : 'border-stone-100 bg-white hover:border-orange-200'}`}
+                >
+                  <div className="flex items-center space-x-4">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedPaymentMethod === 'Pay with New Card' ? 'bg-orange-600 text-white' : 'bg-stone-100 text-stone-400'}`}>
+                      <CreditCard size={20} />
+                    </div>
+                    <span className={`text-sm font-black uppercase tracking-wider ${selectedPaymentMethod === 'Pay with New Card' ? 'text-orange-600' : 'text-stone-500'}`}>Pay with New Card</span>
+                  </div>
+                  {selectedPaymentMethod === 'Pay with New Card' && <div className="w-3 h-3 bg-orange-600 rounded-full"></div>}
                 </div>
 
                 {user?.paymentMethods?.map((method) => (
@@ -361,7 +398,7 @@ const Checkout = () => {
                   >
                     <div className="flex items-center space-x-4">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center uppercase font-black text-[10px] ${selectedPaymentMethod === `Card ending in ${method.last4}` ? 'bg-orange-600 text-white' : 'bg-stone-100 text-stone-400'}`}>
-                        {method.type === 'visa' ? 'VISA' : method.type === 'mastercard' ? 'MC' : <CreditCard size={16} />}
+                        {method.type === 'visa' ? 'VISA' : method.type === 'mastercard' ? 'MC' : method.type === 'verve' ? 'VERVE' : <CreditCard size={16} />}
                       </div>
                       <div>
                         <span className={`text-sm font-black uppercase tracking-wider block ${selectedPaymentMethod === `Card ending in ${method.last4}` ? 'text-orange-600' : 'text-stone-500'}`}>Card ending in {method.last4}</span>
@@ -400,6 +437,16 @@ const Checkout = () => {
           </div>
         </form>
       </main>
+
+      <CardForm 
+        isOpen={isCardFormOpen} 
+        onClose={() => {
+          setIsCardFormOpen(false);
+          setIsPlacingOrder(false);
+        }} 
+        onCardAdded={onNewCardAdded}
+        userEmail={user?.email}
+      />
     </div>
   );
 };

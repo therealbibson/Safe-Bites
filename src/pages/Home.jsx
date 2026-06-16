@@ -167,6 +167,25 @@ const Home = () => {
                 >
                   Discover Menu
                 </motion.button>
+
+                <div className="mt-6 sm:mt-8 flex flex-wrap justify-center gap-2 sm:gap-4">
+                  {[
+                    { icon: <Clock size={16} className="sm:w-5 sm:h-5" />, title: "30 Min Delivery" },
+                    { icon: <Star size={16} className="sm:w-5 sm:h-5" />, title: "Top Rated" },
+                    { icon: <Heart size={16} className="sm:w-5 sm:h-5" />, title: "Best Quality" }
+                  ].map((feature, i) => (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.6 + i * 0.1 }}
+                      className="flex items-center space-x-1.5 sm:space-x-2 bg-white/10 backdrop-blur-md px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border border-white/20"
+                    >
+                      <div className="text-orange-200">{feature.icon}</div>
+                      <span className="text-[10px] sm:text-xs font-bold tracking-wider uppercase">{feature.title}</span>
+                    </motion.div>
+                  ))}
+                </div>
               </motion.div>
             </div>
 
@@ -270,32 +289,6 @@ const Home = () => {
                 )}
               </AnimatePresence>
             </div>
-          </div>
-
-          {/* Feature Grid with Pop Animations */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-12 sm:mb-16">
-            {[
-              { icon: <Clock className="text-orange-500" />, title: "30 Min Delivery", desc: "Fastest in the city" },
-              { icon: <Star className="text-orange-500" />, title: "Top Rated", desc: "4.8/5 Average Rating" },
-              { icon: <Heart className="text-orange-500" />, title: "Best Quality", desc: "Made with fresh ingredients" }
-            ].map((feature, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.2 }}
-                className="bg-white p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] flex items-center space-x-4 shadow-sm hover:shadow-lg transition-all border border-stone-50"
-              >
-                <div className="p-3 sm:p-4 bg-orange-100 rounded-xl sm:rounded-2xl">
-                  {React.cloneElement(feature.icon, { size: 24, className: "sm:w-6 sm:h-6 text-orange-500" })}
-                </div>
-                <div>
-                  <h4 className="font-bold text-base sm:text-lg text-stone-800">{feature.title}</h4>
-                  <p className="text-stone-500 text-xs sm:text-sm">{feature.desc}</p>
-                </div>
-              </motion.div>
-            ))}
           </div>
 
           {/* Dynamic Food Grid */}

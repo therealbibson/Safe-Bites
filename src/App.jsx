@@ -3,6 +3,7 @@ import { CartProvider } from './context/CartContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { NotificationProvider } from './context/NotificationContext';
+import { ToastProvider } from './context/ToastContext';
 import SplashScreen from './pages/SplashScreen';
 import SignIn from './pages/SignIn';
 import SignUp from './pages/SignUp';
@@ -46,29 +47,32 @@ function App() {
     <AuthProvider>
       <SettingsProvider>
         <NotificationProvider>
-          <CartProvider>
-            <BrowserRouter>
-              <MaintenanceWrapper>
-                <Routes>
-                  <Route path="/" element={<SplashScreen />} />
-                  <Route path="/signin" element={<SignIn />} />
-                  <Route path="/signup" element={<SignUp />} />
-                  <Route path="/forgot-password" element={<ForgotPassword />} />
-                  <Route path="/verify-otp" element={<VerifyOTP />} />
-                  <Route path="/home" element={<Home />} />
-                  <Route path="/cart" element={<Cart />} />
-                  <Route path="/checkout" element={<Checkout />} />
-                  <Route path="/user" element={<UserPage />} />
-                  <Route path="/food/:id" element={<FoodDetail />} />
-                  <Route path="/orders" element={<Orders />} />
-                  <Route path="/admin" element={<Admin />} />
-                  <Route path="/support" element={<Support />} />
-                  <Route path="/maintenance" element={<Maintenance />} />
-                  <Route path="*" element={<Navigate to="/home" replace />} />
-                </Routes>
-              </MaintenanceWrapper>
-            </BrowserRouter>
-          </CartProvider>
+          <ToastProvider>
+            <CartProvider>
+              <BrowserRouter>
+                <MaintenanceWrapper>
+                  <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/welcome" element={<SplashScreen />} />
+                    <Route path="/signin" element={<SignIn />} />
+                    <Route path="/signup" element={<SignUp />} />
+                    <Route path="/forgot-password" element={<ForgotPassword />} />
+                    <Route path="/verify-otp" element={<VerifyOTP />} />
+                    <Route path="/home" element={<Home />} />
+                    <Route path="/cart" element={<Cart />} />
+                    <Route path="/checkout" element={<Checkout />} />
+                    <Route path="/user" element={<UserPage />} />
+                    <Route path="/food/:id" element={<FoodDetail />} />
+                    <Route path="/orders" element={<Orders />} />
+                    <Route path="/admin" element={<Admin />} />
+                    <Route path="/support" element={<Support />} />
+                    <Route path="/maintenance" element={<Maintenance />} />
+                    <Route path="*" element={<Navigate to="/home" replace />} />
+                  </Routes>
+                </MaintenanceWrapper>
+              </BrowserRouter>
+            </CartProvider>
+          </ToastProvider>
         </NotificationProvider>
       </SettingsProvider>
     </AuthProvider>
