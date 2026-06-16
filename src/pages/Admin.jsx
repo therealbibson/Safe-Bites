@@ -1119,8 +1119,8 @@ const Admin = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
                   <div className="flex flex-col space-y-2">
                     <h3 className="text-xl font-black text-stone-800 uppercase tracking-tight">Product Management</h3>
-                    <div className="flex items-center gap-3">
-                      <div className="relative w-full sm:w-64">
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                      <div className="relative flex-1 sm:w-64">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
                         <input 
                           type="text"
@@ -1131,8 +1131,8 @@ const Admin = () => {
                         />
                       </div>
                       
-                      {/* Global Sort Selector */}
-                      <div className="relative group hidden md:block">
+                      {/* Global Sort Selector - Visible on both Mobile and Desktop */}
+                      <div className="relative group">
                         <div className="flex items-center bg-stone-50 border border-stone-100 rounded-xl px-3 py-2 hover:border-orange-500 transition-all cursor-pointer">
                           <ArrowUpDown size={16} className="text-stone-400 mr-2" />
                           <select 
